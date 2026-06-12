@@ -106,6 +106,7 @@ export interface DriveConfig {
 
 export interface AppSettings {
   openaiKey?: string; // salvata dalla UI; l'env OPENAI_API_KEY ha precedenza
+  uploadPostKey?: string; // chiave aggregatore di pubblicazione (Upload-Post)
   topups: TopUp[];
   drive: DriveConfig;
 }
@@ -114,6 +115,32 @@ export const DEFAULT_SETTINGS: AppSettings = {
   topups: [],
   drive: {},
 };
+
+// ---- Distribuzione / pubblicazione ----
+
+export type Platform = "instagram" | "tiktok";
+
+export interface SocialAccount {
+  projectId: string;
+  platform: Platform;
+  handle?: string;
+  status: "connected";
+  connectedAt?: string;
+}
+
+export type PostStatus = "queued" | "publishing" | "published" | "failed";
+
+export interface PostRecord {
+  id: string;
+  projectId: string;
+  createdAt: string;
+  scheduledAt?: string | null; // null = pubblicato subito
+  status: PostStatus;
+  platforms: Platform[];
+  caption?: string;
+  slides?: SlideInput[]; // per anteprime nello Storico
+  result?: unknown; // risposta provider o errore
+}
 
 export interface UsageSummary {
   spentCents: number; // somma reale dal ledger (no cache hit)

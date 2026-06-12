@@ -1,12 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, Download, Loader2, PanelBottomClose, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Download, Loader2, PanelBottomClose, Send, X } from "lucide-react";
 import { useFlowStore } from "@/store/useFlowStore";
 import { buildOutputs, type OutputGroup, type OutputSequence } from "@/lib/outputs";
 import { downloadCarousel, downloadGroups } from "@/lib/clientExport";
 import { OverlayPreview } from "./OverlayPreview";
+import { PublishDialog } from "./distribution/PublishDialog";
 import type { SlideInput } from "@/lib/types";
+
+interface PubTarget {
+  label: string;
+  slides: SlideInput[];
+}
 
 function Thumb({ slide, onOpen }: { slide: SlideInput; onOpen: () => void }) {
   return (
@@ -24,7 +30,15 @@ function Thumb({ slide, onOpen }: { slide: SlideInput; onOpen: () => void }) {
   );
 }
 
-function VariantRow({ group, onOpen }: { group: OutputGroup; onOpen: (slides: SlideInput[], start: number) => void }) {
+function VariantRow({
+  group,
+  onOpen,
+  onPublish,
+}: {
+  group: OutputGroup;
+  onOpen: (slides: SlideInput[], start: number) => void;
+  onPublish: (t: PubTarget) => void;
+}) {
   const [busy, setBusy] = useState(false);
   const download = async () => {
     setBusy(true);
@@ -43,6 +57,13 @@ function VariantRow({ group, onOpen }: { group: OutputGroup; onOpen: (slides: Sl
         ))}
       </div>
       <button
+        onClick={() => onPublish({ label: group.label, slides: group.slides })}
+        className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-white text-black transition hover:bg-zinc-200"
+        title={`Pubblica ${group.label}`}
+      >
+        <Send size={12} />
+      </button>
+      <button
         onClick={download}
         disabled={busy}
         className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-[#2e2e34] bg-[#202024] text-zinc-400 transition hover:border-[#454550] hover:text-white disabled:opacity-40"
@@ -54,7 +75,15 @@ function VariantRow({ group, onOpen }: { group: OutputGroup; onOpen: (slides: Sl
   );
 }
 
-function SequenceBlock({ seq, onOpen }: { seq: OutputSequence; onOpen: (slides: SlideInput[], start: number) => void }) {
+function SequenceBlock({
+  seq,
+  onOpen,
+  onPublish,
+}: {
+  seq: OutputSequence;
+  onOpen: (slides: SlideInput[], start: number) => void;
+  onPublish: (t: PubTarget) => void;
+}) {
   const [busy, setBusy] = useState(false);
   const downloadAll = async () => {
     setBusy(true);
@@ -88,7 +117,7 @@ function SequenceBlock({ seq, onOpen }: { seq: OutputSequence; onOpen: (slides: 
       </div>
       <div className="space-y-0.5">
         {seq.groups.map((g) => (
-          <VariantRow key={g.label} group={g} onOpen={onOpen} />
+          <VariantRow key={g.label} group={g} onOpen={onOpen} onPublish={onPublish} />
         ))}
       </div>
     </div>
@@ -152,6 +181,7 @@ export function OutputDock() {
   const meta = useFlowStore((s) => s.meta);
   const [open, setOpen] = useState(true);
   const [box, setBox] = useState<{ slides: SlideInput[]; start: number } | null>(null);
+  const [pub, setPub] = useState<PubTarget | null>(null);
 
   const sequences = useMemo(() => buildOutputs(nodes, edges), [nodes, edges]);
   const totalVariants = sequences.reduce((a, s) => a + s.groups.length, 0);
@@ -178,13 +208,19 @@ export function OutputDock() {
           {open && (
             <div className="max-h-[46vh] space-y-2.5 overflow-y-auto px-3 pb-3">
               {sequences.map((seq) => (
-                <SequenceBlock key={seq.carouselId} seq={seq} onOpen={(slides, start) => setBox({ slides, start })} />
+                <SequenceBlock
+                  key={seq.carouselId}
+                  seq={seq}
+                  onOpen={(slides, start) => setBox({ slides, start })}
+                  onPublish={setPub}
+                />
               ))}
             </div>
           )}
         </div>
       </div>
       {box && <Lightbox slides={box.slides} start={box.start} onClose={() => setBox(null)} />}
+      {pub && <PublishDialog projectId={meta.id} label={pub.label} slides={pub.slides} onClose={() => setPub(null)} />}
     </>
   );
 }

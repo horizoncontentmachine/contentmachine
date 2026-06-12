@@ -4,7 +4,10 @@ import {
   type AppSettings,
   type AssetRecord,
   type LedgerEntry,
+  type Platform,
+  type PostRecord,
   type Project,
+  type SocialAccount,
   type VaultEntry,
 } from "./types";
 
@@ -141,4 +144,86 @@ export async function saveSettings(patch: Partial<AppSettings>): Promise<AppSett
   const next: AppSettings = { ...cur, ...patch, drive: { ...cur.drive, ...patch.drive } };
   await kvPut("settings", next);
   return next;
+}
+
+// ---- Social accounts (mirror dello stato del provider) ----
+
+export async function listAccounts(projectId: string): Promise<SocialAccount[]> {
+  const { results } = await (await db())
+    .prepare("SELECT projectId, platform, handle, status, connectedAt FROM social_accounts WHERE projectId=?")
+    .bind(projectId)
+    .all<SocialAccount>();
+  return results ?? [];
+}
+
+export async function upsertAccount(a: SocialAccount): Promise<void> {
+  await (await db())
+    .prepare(
+      "INSERT INTO social_accounts (projectId,platform,handle,status,connectedAt) VALUES (?,?,?,?,?) " +
+        "ON CONFLICT(projectId,platform) DO UPDATE SET handle=excluded.handle, status=excluded.status, connectedAt=excluded.connectedAt"
+    )
+    .bind(a.projectId, a.platform, a.handle ?? null, a.status, a.connectedAt ?? new Date().toISOString())
+    .run();
+}
+
+export async function removeAccount(projectId: string, platform: Platform): Promise<void> {
+  await (await db()).prepare("DELETE FROM social_accounts WHERE projectId=? AND platform=?").bind(projectId, platform).run();
+}
+
+// Sostituisce lo stato account del progetto con l'insieme attualmente connesso.
+export async function syncAccounts(projectId: string, connected: Platform[], handles: Partial<Record<Platform, string>>): Promise<void> {
+  await (await db()).prepare("DELETE FROM social_accounts WHERE projectId=?").bind(projectId).run();
+  for (const p of connected) {
+    await upsertAccount({ projectId, platform: p, handle: handles[p], status: "connected", connectedAt: new Date().toISOString() });
+  }
+}
+
+// ---- Posts (storico / coda) ----
+
+export async function listPosts(projectId: string): Promise<PostRecord[]> {
+  const { results } = await (await db())
+    .prepare("SELECT * FROM posts WHERE projectId=? ORDER BY createdAt DESC LIMIT 200")
+    .bind(projectId)
+    .all<{ id: string; projectId: string; createdAt: string; scheduledAt: string | null; status: string; platforms: string; caption: string | null; slides: string | null; result: string | null }>();
+  return (results ?? []).map((r) => ({
+    id: r.id,
+    projectId: r.projectId,
+    createdAt: r.createdAt,
+    scheduledAt: r.scheduledAt,
+    status: r.status as PostRecord["status"],
+    platforms: JSON.parse(r.platforms) as Platform[],
+    caption: r.caption ?? undefined,
+    slides: r.slides ? JSON.parse(r.slides) : undefined,
+    result: r.result ? JSON.parse(r.result) : undefined,
+  }));
+}
+
+export async function createPost(p: PostRecord): Promise<void> {
+  await (await db())
+    .prepare(
+      "INSERT INTO posts (id,projectId,createdAt,scheduledAt,status,platforms,caption,slides,result) VALUES (?,?,?,?,?,?,?,?,?)"
+    )
+    .bind(
+      p.id,
+      p.projectId,
+      p.createdAt,
+      p.scheduledAt ?? null,
+      p.status,
+      JSON.stringify(p.platforms),
+      p.caption ?? null,
+      p.slides ? JSON.stringify(p.slides) : null,
+      p.result ? JSON.stringify(p.result) : null
+    )
+    .run();
+}
+
+export async function updatePostStatus(id: string, status: PostRecord["status"], result?: unknown): Promise<void> {
+  await (await db())
+    .prepare("UPDATE posts SET status=?, result=? WHERE id=?")
+    .bind(status, result !== undefined ? JSON.stringify(result) : null, id)
+    .run();
+}
+
+export function uidLong(): string {
+  return crypto.randomUUID();
 }

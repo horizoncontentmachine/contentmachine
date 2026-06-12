@@ -68,7 +68,7 @@ function drawOverlay(ctx: CanvasRenderingContext2D, spec?: OverlaySpec | null) {
   });
 }
 
-async function renderSlidePng(slide: SlideInput): Promise<Uint8Array> {
+async function renderSlideBlob(slide: SlideInput): Promise<Blob> {
   const canvas = document.createElement("canvas");
   canvas.width = CANVAS_W;
   canvas.height = CANVAS_H;
@@ -84,8 +84,18 @@ async function renderSlidePng(slide: SlideInput): Promise<Uint8Array> {
 
   drawOverlay(ctx, slide.overlay);
 
-  const blob: Blob = await new Promise((res) => canvas.toBlob((b) => res(b!), "image/png"));
-  return new Uint8Array(await blob.arrayBuffer());
+  return new Promise((res) => canvas.toBlob((b) => res(b!), "image/png"));
+}
+
+async function renderSlidePng(slide: SlideInput): Promise<Uint8Array> {
+  return new Uint8Array(await (await renderSlideBlob(slide)).arrayBuffer());
+}
+
+// PNG finali (con overlay) pronti per la pubblicazione.
+export async function renderSlideBlobs(slides: SlideInput[]): Promise<Blob[]> {
+  const out: Blob[] = [];
+  for (const s of slides) out.push(await renderSlideBlob(s));
+  return out;
 }
 
 function triggerDownload(bytes: Uint8Array, filename: string, type: string) {

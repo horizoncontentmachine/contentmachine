@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, CloudUpload, ExternalLink, KeyRound, Loader2, Plus, Trash2, Wallet } from "lucide-react";
+import { ArrowLeft, Check, CloudUpload, ExternalLink, KeyRound, Loader2, Plus, Send, Trash2, Wallet } from "lucide-react";
 import { getJson, postJson } from "@/lib/clientApi";
 import { formatCents, QUALITY_LABEL } from "@/lib/costs";
 import type { TopUp, UsageSummary } from "@/lib/types";
 
 interface SettingsView {
   openai: { source: "env" | "saved" | "none"; configured: boolean; masked: string | null };
+  uploadPost: { configured: boolean; masked: string | null };
   topups: TopUp[];
   topupCents: number;
   drive: {
@@ -48,6 +49,7 @@ export default function SettingsPage() {
   const [s, setS] = useState<SettingsView | null>(null);
   const [usage, setUsage] = useState<UsageSummary | null>(null);
   const [keyInput, setKeyInput] = useState("");
+  const [upKey, setUpKey] = useState("");
   const [topup, setTopup] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -140,6 +142,57 @@ export default function SettingsPage() {
               className="mt-3 inline-flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300"
             >
               Crea/gestisci la chiave su platform.openai.com <ExternalLink size={10} />
+            </a>
+          </Section>
+
+          {/* Upload-Post (pubblicazione) */}
+          <Section
+            icon={<Send size={15} />}
+            title="Pubblicazione (Upload-Post)"
+            desc="Il provider che pubblica i caroselli su Instagram e TikTok. Collega la chiave una volta; gli account dei progetti si collegano poi dalla scheda Account."
+          >
+            <div className="mb-3 flex items-center gap-2 text-[12px]">
+              {s?.uploadPost.configured ? (
+                <>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-600/30 bg-emerald-600/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+                    <Check size={11} /> Collegata
+                  </span>
+                  <span className="font-mono text-zinc-500">{s.uploadPost.masked}</span>
+                </>
+              ) : (
+                <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-300">
+                  Non collegata
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <input
+                className={inputCls}
+                type="password"
+                placeholder="Upload-Post API key (Apikey…)"
+                value={upKey}
+                onChange={(e) => setUpKey(e.target.value)}
+              />
+              <button
+                className={whiteBtn}
+                disabled={!upKey.trim() || busy === "up"}
+                onClick={() => save({ uploadPostKey: upKey }, "up").then(() => setUpKey(""))}
+              >
+                {busy === "up" ? <Loader2 size={13} className="animate-spin" /> : "Salva"}
+              </button>
+              {s?.uploadPost.configured && (
+                <button className={ghostBtn} disabled={busy === "up"} onClick={() => save({ clearUploadPostKey: true }, "up")}>
+                  Rimuovi
+                </button>
+              )}
+            </div>
+            <a
+              href="https://www.upload-post.com/"
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300"
+            >
+              Crea l&apos;account e la API key su upload-post.com <ExternalLink size={10} />
             </a>
           </Section>
 

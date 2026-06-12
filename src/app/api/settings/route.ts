@@ -1,17 +1,22 @@
 import { NextResponse } from "next/server";
 import { getSettings, saveSettings } from "@/lib/db";
-import { maskKey, openAIKeySource, resolveOpenAIKey } from "@/lib/settings";
+import { maskKey, openAIKeySource, resolveOpenAIKey, resolveUploadPostKey } from "@/lib/settings";
 import type { TopUp } from "@/lib/types";
 
 export const runtime = "nodejs";
 
 async function publicView() {
   const s = await getSettings();
+  const upKey = await resolveUploadPostKey();
   return {
     openai: {
       source: await openAIKeySource(),
       configured: !!(await resolveOpenAIKey()),
       masked: maskKey(await resolveOpenAIKey()),
+    },
+    uploadPost: {
+      configured: !!upKey,
+      masked: maskKey(upKey),
     },
     topups: s.topups,
     topupCents: s.topups.reduce((a, t) => a + t.cents, 0),
@@ -33,6 +38,12 @@ export async function POST(req: Request) {
   }
   if (body.clearOpenaiKey) {
     await saveSettings({ openaiKey: undefined });
+  }
+  if (typeof body.uploadPostKey === "string" && body.uploadPostKey.trim()) {
+    await saveSettings({ uploadPostKey: body.uploadPostKey.trim() });
+  }
+  if (body.clearUploadPostKey) {
+    await saveSettings({ uploadPostKey: undefined });
   }
   if (typeof body.addTopupCents === "number" && body.addTopupCents > 0) {
     const t: TopUp = { cents: Math.round(body.addTopupCents), at: new Date().toISOString(), note: body.topupNote };

@@ -17,6 +17,14 @@ export async function openAIKeySource(): Promise<"env" | "saved" | "none"> {
   return "none";
 }
 
+// Chiave aggregatore di pubblicazione (Upload-Post): env o salvata dalla UI.
+export async function resolveUploadPostKey(): Promise<string | null> {
+  const env = (await cfEnv()).UPLOAD_POST_API_KEY?.trim();
+  if (env) return env;
+  const saved = (await getSettings()).uploadPostKey?.trim();
+  return saved || null;
+}
+
 export function maskKey(key?: string | null): string | null {
   if (!key) return null;
   if (key.length <= 10) return "•".repeat(key.length);

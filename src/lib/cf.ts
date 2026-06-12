@@ -8,8 +8,10 @@ export interface CFEnv {
   BLOBS: KVNamespace;
   OPENAI_API_KEY?: string;
   OPENAI_IMAGE_MODEL?: string;
+  UPLOAD_POST_API_KEY?: string;
   APP_USER?: string;
   APP_PASSWORD?: string;
+  APP_URL?: string;
 }
 
 export async function cfEnv(): Promise<CFEnv> {
