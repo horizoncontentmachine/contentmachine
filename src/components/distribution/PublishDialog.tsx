@@ -6,9 +6,9 @@ import { Check, Loader2, Send, X } from "lucide-react";
 import { getJson } from "@/lib/clientApi";
 import { renderSlideBlobs } from "@/lib/clientExport";
 import { OverlayPreview } from "@/components/OverlayPreview";
-import type { Platform, SlideInput, SocialAccount } from "@/lib/types";
+import { PLATFORM_LABEL, type Platform, type SlideInput, type SocialAccount } from "@/lib/types";
 
-const PLAT_LABEL: Record<Platform, string> = { instagram: "Instagram", tiktok: "TikTok" };
+const BADGE: Record<Platform, string> = { instagram: "IG", tiktok: "TT", x: "X" };
 
 export function PublishDialog({
   projectId,
@@ -21,25 +21,26 @@ export function PublishDialog({
   slides: SlideInput[];
   onClose: () => void;
 }) {
-  const [connected, setConnected] = useState<SocialAccount[] | null>(null);
-  const [picked, setPicked] = useState<Set<Platform>>(new Set());
+  const [accounts, setAccounts] = useState<SocialAccount[] | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
   const [caption, setCaption] = useState("");
   const [state, setState] = useState<"idle" | "publishing" | "done">("idle");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getJson<{ connected: SocialAccount[] }>(`/api/projects/${projectId}/accounts`)
+    getJson<{ accounts: SocialAccount[] }>(`/api/projects/${projectId}/accounts`)
       .then((r) => {
-        setConnected(r.connected);
-        setPicked(new Set(r.connected.map((a) => a.platform)));
+        const connected = r.accounts.filter((a) => a.status === "connected");
+        setAccounts(connected);
+        setPicked(new Set(connected.map((a) => a.id)));
       })
-      .catch(() => setConnected([]));
+      .catch(() => setAccounts([]));
   }, [projectId]);
 
-  const toggle = (p: Platform) =>
+  const toggle = (id: string) =>
     setPicked((s) => {
       const n = new Set(s);
-      n.has(p) ? n.delete(p) : n.add(p);
+      n.has(id) ? n.delete(id) : n.add(id);
       return n;
     });
 
@@ -51,7 +52,7 @@ export function PublishDialog({
       const blobs = await renderSlideBlobs(slides);
       const fd = new FormData();
       fd.append("projectId", projectId);
-      fd.append("platforms", [...picked].join(","));
+      fd.append("accountIds", [...picked].join(","));
       fd.append("caption", caption);
       fd.append("slides", JSON.stringify(slides));
       blobs.forEach((b, i) => fd.append("photos", b, `${String(i + 1).padStart(2, "0")}.png`));
@@ -69,7 +70,7 @@ export function PublishDialog({
   return (
     <div className="fixed inset-0 z-[70] grid place-items-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="w-[420px] max-w-[92vw] overflow-hidden rounded-2xl border border-[#2a2a30] bg-[#161619] shadow-[0_24px_70px_rgba(0,0,0,0.6)]"
+        className="w-[440px] max-w-[92vw] overflow-hidden rounded-2xl border border-[#2a2a30] bg-[#161619] shadow-[0_24px_70px_rgba(0,0,0,0.6)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 border-b border-[#222227] px-4 py-3">
@@ -89,30 +90,37 @@ export function PublishDialog({
           </div>
 
           <div>
-            <div className="mb-1.5 text-[9.5px] font-semibold uppercase tracking-[0.1em] text-zinc-500">Dove pubblicare</div>
-            {connected === null ? (
+            <div className="mb-1.5 text-[9.5px] font-semibold uppercase tracking-[0.1em] text-zinc-500">Account ({picked.size} selezionati)</div>
+            {accounts === null ? (
               <div className="text-[11px] text-zinc-600">Carico account…</div>
-            ) : connected.length === 0 ? (
+            ) : accounts.length === 0 ? (
               <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-[11px] text-amber-200">
                 Nessun account collegato.{" "}
                 <Link href={`/project/${projectId}?tab=account`} className="font-semibold underline">
-                  Collega Instagram o TikTok
+                  Collega un account
                 </Link>
                 .
               </div>
             ) : (
-              <div className="flex gap-2">
-                {connected.map((a) => {
-                  const on = picked.has(a.platform);
+              <div className="grid max-h-44 grid-cols-1 gap-1.5 overflow-y-auto">
+                {accounts.map((a) => {
+                  const on = picked.has(a.id);
                   return (
                     <button
-                      key={a.platform}
-                      onClick={() => toggle(a.platform)}
-                      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11.5px] font-medium transition ${
-                        on ? "border-white bg-white text-black" : "border-[#2e2e34] bg-[#202024] text-zinc-400 hover:text-zinc-200"
+                      key={a.id}
+                      onClick={() => toggle(a.id)}
+                      className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition ${
+                        on ? "border-zinc-400 bg-[#222227]" : "border-[#2a2a30] bg-[#1d1d21] hover:border-[#3c3c44]"
                       }`}
                     >
-                      {PLAT_LABEL[a.platform]} {on && <Check size={11} />}
+                      <span className="grid h-6 w-7 shrink-0 place-items-center rounded bg-[#2e2e34] text-[9px] font-bold text-zinc-300">{BADGE[a.platform]}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[12px] font-medium text-zinc-200">{a.handle ? `@${a.handle}` : PLATFORM_LABEL[a.platform]}</span>
+                        <span className="block text-[9.5px] text-zinc-600">{PLATFORM_LABEL[a.platform]}</span>
+                      </span>
+                      <span className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${on ? "border-white bg-white text-black" : "border-[#3c3c44]"}`}>
+                        {on && <Check size={10} />}
+                      </span>
                     </button>
                   );
                 })}
@@ -148,7 +156,7 @@ export function PublishDialog({
               </>
             ) : (
               <>
-                <Send size={13} /> Pubblica ora
+                <Send size={13} /> Pubblica su {picked.size || 0}
               </>
             )}
           </button>

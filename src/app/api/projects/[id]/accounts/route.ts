@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { listAccounts, syncAccounts, removeAccount } from "@/lib/db";
+import { listAccounts, getAccount, createAccount, updateAccount, removeAccount } from "@/lib/db";
 import { getPublisher } from "@/lib/publish";
-import type { Platform } from "@/lib/types";
+import type { Platform, SocialAccount } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -10,11 +10,11 @@ type Ctx = { params: Promise<{ id: string }> };
 export async function GET(_req: Request, { params }: Ctx) {
   const { id } = await params;
   const publisher = await getPublisher();
-  return NextResponse.json({ providerConfigured: !!publisher, connected: await listAccounts(id) });
+  return NextResponse.json({ providerConfigured: !!publisher, accounts: await listAccounts(id) });
 }
 
 export async function POST(req: Request, { params }: Ctx) {
-  const { id } = await params;
+  const { id: projectId } = await params;
   const body = await req.json().catch(() => ({}));
   const publisher = await getPublisher();
   if (!publisher) {
@@ -23,24 +23,39 @@ export async function POST(req: Request, { params }: Ctx) {
 
   try {
     if (body.action === "connect") {
-      const platform = body.platform as Platform | undefined;
+      const platform = body.platform as Platform;
+      if (!["instagram", "tiktok", "x"].includes(platform)) {
+        return NextResponse.json({ error: "Piattaforma non valida" }, { status: 400 });
+      }
+      const accId = crypto.randomUUID().slice(0, 8);
+      const profile = `cm_${projectId}_${accId}`;
+      const acc: SocialAccount = { id: accId, projectId, platform, providerProfile: profile, status: "pending" };
+      await createAccount(acc);
+      await publisher.ensureProfile(profile);
       const origin = new URL(req.url).origin;
-      const redirect = `${origin}/project/${id}?tab=account&connected=1`;
-      const url = await publisher.connectUrl(id, redirect, platform ? [platform] : undefined);
-      return NextResponse.json({ url });
+      const redirect = `${origin}/project/${projectId}?tab=account&account=${accId}`;
+      const url = await publisher.connectUrl(profile, redirect, [platform]);
+      return NextResponse.json({ url, accountId: accId });
     }
 
     if (body.action === "sync") {
-      const conns = await publisher.listConnections(id);
-      const handles: Partial<Record<Platform, string>> = {};
-      conns.forEach((c) => c.handle && (handles[c.platform] = c.handle));
-      await syncAccounts(id, conns.map((c) => c.platform), handles);
-      return NextResponse.json({ connected: await listAccounts(id) });
+      const profiles = await publisher.getProfiles();
+      const accounts = await listAccounts(projectId);
+      const targets = body.accountId ? accounts.filter((a) => a.id === body.accountId) : accounts;
+      for (const a of targets) {
+        const prof = profiles.find((p) => p.username === a.providerProfile);
+        const conn = prof?.connected.find((c) => c.platform === a.platform);
+        if (conn) {
+          await updateAccount(a.id, { status: "connected", handle: conn.handle, connectedAt: new Date().toISOString() });
+        }
+      }
+      return NextResponse.json({ accounts: await listAccounts(projectId) });
     }
 
-    if (body.action === "disconnect" && body.platform) {
-      await removeAccount(id, body.platform as Platform);
-      return NextResponse.json({ connected: await listAccounts(id) });
+    if (body.action === "disconnect" && body.accountId) {
+      const a = await getAccount(body.accountId);
+      if (a && a.projectId === projectId) await removeAccount(a.id);
+      return NextResponse.json({ accounts: await listAccounts(projectId) });
     }
 
     return NextResponse.json({ error: "Azione non valida" }, { status: 400 });

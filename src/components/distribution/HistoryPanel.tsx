@@ -6,7 +6,7 @@ import { getJson } from "@/lib/clientApi";
 import { OverlayPreview } from "@/components/OverlayPreview";
 import type { Platform, PostRecord } from "@/lib/types";
 
-const PLAT_LABEL: Record<Platform, string> = { instagram: "IG", tiktok: "TT" };
+const PLAT_LABEL: Record<Platform, string> = { instagram: "IG", tiktok: "TT", x: "X" };
 
 function StatusBadge({ status }: { status: PostRecord["status"] }) {
   const map = {

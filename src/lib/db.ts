@@ -146,36 +146,39 @@ export async function saveSettings(patch: Partial<AppSettings>): Promise<AppSett
   return next;
 }
 
-// ---- Social accounts (mirror dello stato del provider) ----
+// ---- Social accounts (1 riga = 1 account = 1 profilo Upload-Post) ----
 
 export async function listAccounts(projectId: string): Promise<SocialAccount[]> {
   const { results } = await (await db())
-    .prepare("SELECT projectId, platform, handle, status, connectedAt FROM social_accounts WHERE projectId=?")
+    .prepare("SELECT id, projectId, platform, handle, providerProfile, status, connectedAt FROM social_accounts WHERE projectId=? ORDER BY platform, connectedAt")
     .bind(projectId)
     .all<SocialAccount>();
   return results ?? [];
 }
 
-export async function upsertAccount(a: SocialAccount): Promise<void> {
+export async function getAccount(id: string): Promise<SocialAccount | null> {
+  return (await db())
+    .prepare("SELECT id, projectId, platform, handle, providerProfile, status, connectedAt FROM social_accounts WHERE id=?")
+    .bind(id)
+    .first<SocialAccount>();
+}
+
+export async function createAccount(a: SocialAccount): Promise<void> {
   await (await db())
-    .prepare(
-      "INSERT INTO social_accounts (projectId,platform,handle,status,connectedAt) VALUES (?,?,?,?,?) " +
-        "ON CONFLICT(projectId,platform) DO UPDATE SET handle=excluded.handle, status=excluded.status, connectedAt=excluded.connectedAt"
-    )
-    .bind(a.projectId, a.platform, a.handle ?? null, a.status, a.connectedAt ?? new Date().toISOString())
+    .prepare("INSERT INTO social_accounts (id,projectId,platform,handle,providerProfile,status,connectedAt) VALUES (?,?,?,?,?,?,?)")
+    .bind(a.id, a.projectId, a.platform, a.handle ?? null, a.providerProfile, a.status, a.connectedAt ?? null)
     .run();
 }
 
-export async function removeAccount(projectId: string, platform: Platform): Promise<void> {
-  await (await db()).prepare("DELETE FROM social_accounts WHERE projectId=? AND platform=?").bind(projectId, platform).run();
+export async function updateAccount(id: string, patch: { handle?: string; status?: SocialAccount["status"]; connectedAt?: string }): Promise<void> {
+  await (await db())
+    .prepare("UPDATE social_accounts SET handle=COALESCE(?,handle), status=COALESCE(?,status), connectedAt=COALESCE(?,connectedAt) WHERE id=?")
+    .bind(patch.handle ?? null, patch.status ?? null, patch.connectedAt ?? null, id)
+    .run();
 }
 
-// Sostituisce lo stato account del progetto con l'insieme attualmente connesso.
-export async function syncAccounts(projectId: string, connected: Platform[], handles: Partial<Record<Platform, string>>): Promise<void> {
-  await (await db()).prepare("DELETE FROM social_accounts WHERE projectId=?").bind(projectId).run();
-  for (const p of connected) {
-    await upsertAccount({ projectId, platform: p, handle: handles[p], status: "connected", connectedAt: new Date().toISOString() });
-  }
+export async function removeAccount(id: string): Promise<void> {
+  await (await db()).prepare("DELETE FROM social_accounts WHERE id=?").bind(id).run();
 }
 
 // ---- Posts (storico / coda) ----

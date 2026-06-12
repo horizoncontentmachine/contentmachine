@@ -13,15 +13,19 @@ CREATE TABLE IF NOT EXISTS kv (
   v TEXT NOT NULL
 );
 
--- account social collegati, per progetto (mirror dello stato su Upload-Post)
-CREATE TABLE IF NOT EXISTS social_accounts (
+-- account social collegati: 1 riga per account (= 1 profilo Upload-Post),
+-- quanti se ne vogliono per piattaforma/progetto.
+DROP TABLE IF EXISTS social_accounts;
+CREATE TABLE social_accounts (
+  id TEXT PRIMARY KEY,
   projectId TEXT NOT NULL,
-  platform TEXT NOT NULL,            -- instagram | tiktok
+  platform TEXT NOT NULL,            -- instagram | tiktok | x
   handle TEXT,
-  status TEXT NOT NULL,              -- connected
-  connectedAt TEXT,
-  PRIMARY KEY (projectId, platform)
+  providerProfile TEXT NOT NULL,     -- username Upload-Post
+  status TEXT NOT NULL,              -- pending | connected
+  connectedAt TEXT
 );
+CREATE INDEX IF NOT EXISTS accounts_by_project ON social_accounts (projectId);
 
 -- post pubblicati / programmati (Storico + futuro scheduling)
 CREATE TABLE IF NOT EXISTS posts (

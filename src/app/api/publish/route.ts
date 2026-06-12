@@ -1,33 +1,31 @@
 import { NextResponse } from "next/server";
 import { getPublisher } from "@/lib/publish";
-import { createPost, uidLong } from "@/lib/db";
+import { createPost, getAccount, uidLong } from "@/lib/db";
 import type { Platform, PostRecord, SlideInput } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-// Pubblica ora: riceve i PNG già "flattenati" dal browser (multipart) + meta,
-// li inoltra al provider (chiave server-side) e registra il post nello Storico.
+// Pubblica ora: riceve i PNG flattenati dal browser + gli account scelti,
+// pubblica su ciascun account (1 profilo Upload-Post a testa) e registra nello Storico.
 export async function POST(req: Request) {
   try {
     const fd = await req.formData();
     const projectId = String(fd.get("projectId") || "");
     const caption = String(fd.get("caption") || "");
-    const platforms = String(fd.get("platforms") || "")
+    const accountIds = String(fd.get("accountIds") || "")
       .split(",")
       .map((s) => s.trim())
-      .filter(Boolean) as Platform[];
+      .filter(Boolean);
     const slides: SlideInput[] = JSON.parse(String(fd.get("slides") || "[]"));
     const files = fd.getAll("photos").filter((f): f is File => f instanceof File);
 
-    if (!projectId || !platforms.length || !files.length) {
-      return NextResponse.json({ error: "Dati mancanti (progetto, piattaforme o immagini)" }, { status: 400 });
+    if (!projectId || !accountIds.length || !files.length) {
+      return NextResponse.json({ error: "Dati mancanti (account o immagini)" }, { status: 400 });
     }
 
     const publisher = await getPublisher();
-    if (!publisher) {
-      return NextResponse.json({ error: "Collega Upload-Post in Impostazioni" }, { status: 400 });
-    }
+    if (!publisher) return NextResponse.json({ error: "Collega Upload-Post in Impostazioni" }, { status: 400 });
 
     const images = await Promise.all(
       files.map(async (f, i) => ({
@@ -37,26 +35,38 @@ export async function POST(req: Request) {
       }))
     );
 
-    const id = uidLong();
-    const now = new Date().toISOString();
-    await publisher.ensureProfile(projectId);
-    const res = await publisher.publishPhotos({ projectId, platforms, images, caption });
+    const results: { accountId: string; platform: Platform; handle?: string; ok: boolean; error?: string }[] = [];
+    const platforms = new Set<Platform>();
+    for (const accId of accountIds) {
+      const a = await getAccount(accId);
+      if (!a || a.projectId !== projectId) {
+        results.push({ accountId: accId, platform: "instagram", ok: false, error: "account non trovato" });
+        continue;
+      }
+      platforms.add(a.platform);
+      const res = await publisher.publishPhotos({ profile: a.providerProfile, platforms: [a.platform], images, caption });
+      results.push({ accountId: accId, platform: a.platform, handle: a.handle, ok: res.ok, error: res.error });
+    }
 
+    const anyOk = results.some((r) => r.ok);
+    const allOk = results.every((r) => r.ok);
     const post: PostRecord = {
-      id,
+      id: uidLong(),
       projectId,
-      createdAt: now,
+      createdAt: new Date().toISOString(),
       scheduledAt: null,
-      status: res.ok ? "published" : "failed",
-      platforms,
+      status: allOk ? "published" : anyOk ? "published" : "failed",
+      platforms: [...platforms],
       caption,
       slides,
-      result: res.ok ? res.raw : res.error,
+      result: results,
     };
     await createPost(post);
 
-    if (!res.ok) return NextResponse.json({ error: res.error, postId: id }, { status: 502 });
-    return NextResponse.json({ ok: true, postId: id, providerPostId: res.providerPostId });
+    if (!anyOk) {
+      return NextResponse.json({ error: results.map((r) => r.error).filter(Boolean).join(" · ") || "Pubblicazione fallita", results }, { status: 502 });
+    }
+    return NextResponse.json({ ok: true, results });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }

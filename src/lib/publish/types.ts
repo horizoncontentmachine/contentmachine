@@ -1,7 +1,7 @@
 import type { Platform } from "../types";
 
-// Interfaccia comune dei provider di pubblicazione (pluggable): oggi Upload-Post,
-// domani altri, senza toccare il resto dell'app.
+// Interfaccia comune dei provider di pubblicazione (pluggable): oggi Upload-Post.
+// Un "profilo" del provider = un singolo account collegato lato ShortFlow.
 
 export interface PublishImage {
   filename: string;
@@ -16,19 +16,19 @@ export interface PublishResult {
   error?: string;
 }
 
+export interface ProviderProfile {
+  username: string;
+  connected: { platform: Platform; handle?: string }[];
+}
+
 export interface Publisher {
   name: string;
-  // assicura che esista il "profilo" lato provider per questo progetto
-  ensureProfile(projectId: string): Promise<void>;
-  // URL ospitato a cui mandare l'utente per collegare gli account (OAuth del provider)
-  connectUrl(projectId: string, redirectUrl: string, platforms?: Platform[]): Promise<string>;
-  // quali piattaforme risultano collegate per questo progetto
-  listConnections(projectId: string): Promise<{ platform: Platform; handle?: string }[]>;
-  // pubblica un carosello di foto sulle piattaforme indicate
-  publishPhotos(args: {
-    projectId: string;
-    platforms: Platform[];
-    images: PublishImage[];
-    caption: string;
-  }): Promise<PublishResult>;
+  // assicura che il profilo esista lato provider
+  ensureProfile(profile: string): Promise<void>;
+  // URL ospitato per collegare un account (OAuth del provider) a quel profilo
+  connectUrl(profile: string, redirectUrl: string, platforms?: Platform[]): Promise<string>;
+  // elenco profili con i loro account collegati
+  getProfiles(): Promise<ProviderProfile[]>;
+  // pubblica un carosello di foto su un profilo/piattaforma
+  publishPhotos(args: { profile: string; platforms: Platform[]; images: PublishImage[]; caption: string }): Promise<PublishResult>;
 }

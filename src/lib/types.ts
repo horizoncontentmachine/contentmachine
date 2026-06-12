@@ -118,13 +118,22 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
 // ---- Distribuzione / pubblicazione ----
 
-export type Platform = "instagram" | "tiktok";
+export type Platform = "instagram" | "tiktok" | "x";
 
+export const PLATFORM_LABEL: Record<Platform, string> = {
+  instagram: "Instagram",
+  tiktok: "TikTok",
+  x: "X",
+};
+
+// Un account = un profilo Upload-Post dedicato → quanti account vuoi per piattaforma/progetto.
 export interface SocialAccount {
+  id: string;
   projectId: string;
   platform: Platform;
   handle?: string;
-  status: "connected";
+  providerProfile: string; // username Upload-Post
+  status: "pending" | "connected";
   connectedAt?: string;
 }
 
