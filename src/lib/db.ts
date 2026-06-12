@@ -1,14 +1,4 @@
-import fs from "fs";
-import path from "path";
-import crypto from "crypto";
-import {
-  PROJECTS_DIR,
-  ASSETS_INDEX,
-  VAULT_FILE,
-  LEDGER_FILE,
-  SETTINGS_FILE,
-  ensureDirs,
-} from "./paths";
+import { db } from "./cf";
 import {
   DEFAULT_SETTINGS,
   type AppSettings,
@@ -18,48 +8,55 @@ import {
   type VaultEntry,
 } from "./types";
 
-// Storage JSON su file: single-user locale, niente DB da installare.
+// Storage su Cloudflare D1 (JSON-blob): projects in tabella dedicata, il resto in tabella kv.
+// Tutte le funzioni sono async.
 
-function readJson<T>(file: string, fallback: T): T {
-  try {
-    return JSON.parse(fs.readFileSync(file, "utf8")) as T;
-  } catch {
-    return fallback;
-  }
+function uid(): string {
+  return crypto.randomUUID().slice(0, 8);
 }
 
-function writeJson(file: string, data: unknown) {
-  ensureDirs();
-  const tmp = file + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
-  fs.renameSync(tmp, file);
+// ---- kv generico ----
+
+async function kvGet<T>(key: string, fallback: T): Promise<T> {
+  const row = await (await db()).prepare("SELECT v FROM kv WHERE k=?").bind(key).first<{ v: string }>();
+  return row ? (JSON.parse(row.v) as T) : fallback;
+}
+
+async function kvPut(key: string, val: unknown): Promise<void> {
+  await (await db())
+    .prepare("INSERT INTO kv (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v")
+    .bind(key, JSON.stringify(val))
+    .run();
 }
 
 // ---- Projects ----
 
-export function listProjects(): Project[] {
-  ensureDirs();
-  return fs
-    .readdirSync(PROJECTS_DIR)
-    .filter((f) => f.endsWith(".json"))
-    .map((f) => readJson<Project | null>(path.join(PROJECTS_DIR, f), null))
-    .filter((p): p is Project => !!p)
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+export async function listProjects(): Promise<Project[]> {
+  const { results } = await (await db())
+    .prepare("SELECT data FROM projects ORDER BY updatedAt DESC")
+    .all<{ data: string }>();
+  return (results ?? []).map((r) => JSON.parse(r.data) as Project);
 }
 
-export function getProject(id: string): Project | null {
-  return readJson<Project | null>(path.join(PROJECTS_DIR, id + ".json"), null);
+export async function getProject(id: string): Promise<Project | null> {
+  const row = await (await db()).prepare("SELECT data FROM projects WHERE id=?").bind(id).first<{ data: string }>();
+  return row ? (JSON.parse(row.data) as Project) : null;
 }
 
-export function saveProject(p: Project) {
+export async function saveProject(p: Project): Promise<void> {
   p.updatedAt = new Date().toISOString();
-  writeJson(path.join(PROJECTS_DIR, p.id + ".json"), p);
+  await (await db())
+    .prepare(
+      "INSERT INTO projects (id,updatedAt,data) VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET updatedAt=excluded.updatedAt, data=excluded.data"
+    )
+    .bind(p.id, p.updatedAt, JSON.stringify(p))
+    .run();
 }
 
-export function createProject(name: string, niche: string): Project {
+export async function createProject(name: string, niche: string): Promise<Project> {
   const now = new Date().toISOString();
   const p: Project = {
-    id: crypto.randomUUID().slice(0, 8),
+    id: uid(),
     name,
     niche,
     graph: { nodes: [], edges: [] },
@@ -67,76 +64,66 @@ export function createProject(name: string, niche: string): Project {
     createdAt: now,
     updatedAt: now,
   };
-  saveProject(p);
+  await saveProject(p);
   return p;
 }
 
-export function deleteProject(id: string) {
-  try {
-    fs.unlinkSync(path.join(PROJECTS_DIR, id + ".json"));
-  } catch {}
+export async function deleteProject(id: string): Promise<void> {
+  await (await db()).prepare("DELETE FROM projects WHERE id=?").bind(id).run();
 }
 
-// ---- Assets (cache index) ----
+// ---- Assets (indice cache) ----
 
-export function getAssetIndex(): Record<string, AssetRecord> {
-  return readJson<Record<string, AssetRecord>>(ASSETS_INDEX, {});
+export async function getAssetIndex(): Promise<Record<string, AssetRecord>> {
+  return kvGet<Record<string, AssetRecord>>("assets_index", {});
 }
 
-export function getAsset(key: string): AssetRecord | null {
-  return getAssetIndex()[key] ?? null;
+export async function getAsset(key: string): Promise<AssetRecord | null> {
+  const idx = await getAssetIndex();
+  return idx[key] ?? null;
 }
 
-export function putAsset(rec: AssetRecord) {
-  const idx = getAssetIndex();
+export async function putAsset(rec: AssetRecord): Promise<void> {
+  const idx = await getAssetIndex();
   idx[rec.key] = rec;
-  writeJson(ASSETS_INDEX, idx);
+  await kvPut("assets_index", idx);
 }
 
 // ---- Vault ----
 
-export function listVault(): VaultEntry[] {
-  return readJson<VaultEntry[]>(VAULT_FILE, []);
+export async function listVault(): Promise<VaultEntry[]> {
+  return kvGet<VaultEntry[]>("vault", []);
 }
 
-export function addVaultEntry(e: Omit<VaultEntry, "id" | "createdAt">): VaultEntry {
-  const entry: VaultEntry = {
-    ...e,
-    id: crypto.randomUUID().slice(0, 8),
-    createdAt: new Date().toISOString(),
-  };
-  const all = listVault();
+export async function addVaultEntry(e: Omit<VaultEntry, "id" | "createdAt">): Promise<VaultEntry> {
+  const entry: VaultEntry = { ...e, id: uid(), createdAt: new Date().toISOString() };
+  const all = await listVault();
   all.unshift(entry);
-  writeJson(VAULT_FILE, all);
+  await kvPut("vault", all);
   return entry;
 }
 
-export function deleteVaultEntry(id: string) {
-  writeJson(VAULT_FILE, listVault().filter((e) => e.id !== id));
+export async function deleteVaultEntry(id: string): Promise<void> {
+  await kvPut("vault", (await listVault()).filter((e) => e.id !== id));
 }
 
-// ---- Ledger (storico costi) ----
+// ---- Ledger ----
 
-export function listLedger(projectId?: string): LedgerEntry[] {
-  const all = readJson<LedgerEntry[]>(LEDGER_FILE, []);
+export async function listLedger(projectId?: string): Promise<LedgerEntry[]> {
+  const all = await kvGet<LedgerEntry[]>("ledger", []);
   return projectId ? all.filter((e) => e.projectId === projectId) : all;
 }
 
-export function addLedgerEntry(e: Omit<LedgerEntry, "id" | "createdAt">): LedgerEntry {
-  const entry: LedgerEntry = {
-    ...e,
-    id: crypto.randomUUID().slice(0, 8),
-    createdAt: new Date().toISOString(),
-  };
-  const all = readJson<LedgerEntry[]>(LEDGER_FILE, []);
+export async function addLedgerEntry(e: Omit<LedgerEntry, "id" | "createdAt">): Promise<LedgerEntry> {
+  const entry: LedgerEntry = { ...e, id: uid(), createdAt: new Date().toISOString() };
+  const all = await kvGet<LedgerEntry[]>("ledger", []);
   all.unshift(entry);
-  writeJson(LEDGER_FILE, all);
-  // aggiorna il contatore del progetto solo per spesa reale
+  await kvPut("ledger", all);
   if (!e.cacheHit && e.costCents > 0) {
-    const p = getProject(e.projectId);
+    const p = await getProject(e.projectId);
     if (p) {
       p.spentCents += e.costCents;
-      saveProject(p);
+      await saveProject(p);
     }
   }
   return entry;
@@ -144,18 +131,14 @@ export function addLedgerEntry(e: Omit<LedgerEntry, "id" | "createdAt">): Ledger
 
 // ---- Settings ----
 
-export function getSettings(): AppSettings {
-  const s = readJson<Partial<AppSettings>>(SETTINGS_FILE, {});
+export async function getSettings(): Promise<AppSettings> {
+  const s = await kvGet<Partial<AppSettings>>("settings", {});
   return { ...DEFAULT_SETTINGS, ...s, drive: { ...DEFAULT_SETTINGS.drive, ...s.drive } };
 }
 
-export function saveSettings(patch: Partial<AppSettings>): AppSettings {
-  const cur = getSettings();
-  const next: AppSettings = {
-    ...cur,
-    ...patch,
-    drive: { ...cur.drive, ...patch.drive },
-  };
-  writeJson(SETTINGS_FILE, next);
+export async function saveSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
+  const cur = await getSettings();
+  const next: AppSettings = { ...cur, ...patch, drive: { ...cur.drive, ...patch.drive } };
+  await kvPut("settings", next);
   return next;
 }

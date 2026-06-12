@@ -2,18 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Check,
-  CloudUpload,
-  Copy,
-  ExternalLink,
-  KeyRound,
-  Loader2,
-  Plus,
-  Trash2,
-  Wallet,
-} from "lucide-react";
+import { ArrowLeft, Check, CloudUpload, ExternalLink, KeyRound, Loader2, Plus, Trash2, Wallet } from "lucide-react";
 import { getJson, postJson } from "@/lib/clientApi";
 import { formatCents, QUALITY_LABEL } from "@/lib/costs";
 import type { TopUp, UsageSummary } from "@/lib/types";
@@ -60,23 +49,16 @@ export default function SettingsPage() {
   const [usage, setUsage] = useState<UsageSummary | null>(null);
   const [keyInput, setKeyInput] = useState("");
   const [topup, setTopup] = useState("");
-  const [drive, setDrive] = useState({ clientId: "", clientSecret: "", rootFolderName: "" });
   const [busy, setBusy] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
   const reload = useCallback(async () => {
     const [sv, us] = await Promise.all([getJson<SettingsView>("/api/settings"), getJson<UsageSummary>("/api/usage")]);
     setS(sv);
     setUsage(us);
-    setDrive((d) => ({ ...d, rootFolderName: d.rootFolderName || sv.drive.rootFolderName }));
   }, []);
 
   useEffect(() => {
     reload();
-    const u = new URL(window.location.href);
-    if (u.searchParams.get("drive_ok") || u.searchParams.get("drive_error")) {
-      window.history.replaceState({}, "", "/settings");
-    }
   }, [reload]);
 
   const save = async (body: Record<string, unknown>, tag: string) => {
@@ -88,8 +70,6 @@ export default function SettingsPage() {
       setBusy(null);
     }
   };
-
-  const driveError = typeof window !== "undefined" ? new URL(window.location.href).searchParams.get("drive_error") : null;
 
   return (
     <div className="h-screen overflow-y-auto">
@@ -236,98 +216,16 @@ export default function SettingsPage() {
             )}
           </Section>
 
-          {/* Google Drive */}
+          {/* Google Drive — rimandato sulla versione cloud */}
           <Section
             icon={<CloudUpload size={15} />}
             title="Google Drive"
-            desc="Salva i caroselli generati nel tuo Drive: una cartella per progetto, dentro una sottocartella per ogni variante (C1.0, C1.1…) con le immagini in ordine."
+            desc="Salvataggio dei caroselli direttamente su Drive (una cartella per variante)."
           >
-            {driveError && (
-              <div className="mb-3 rounded-lg border border-red-900/50 bg-red-950/30 p-2.5 text-[11px] text-red-300">{driveError}</div>
-            )}
-
-            {s?.drive.connected ? (
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-600/30 bg-emerald-600/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
-                  <Check size={11} /> Collegato
-                </span>
-                {s.drive.connectedEmail && <span className="text-[12px] text-zinc-400">{s.drive.connectedEmail}</span>}
-                <div className="flex-1" />
-                <a href="/api/drive/auth" className={ghostBtn}>
-                  Ricollega
-                </a>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="rounded-xl border border-[#26262b] bg-[#1d1d21] p-3 text-[11.5px] leading-relaxed text-zinc-400">
-                  <div className="mb-1.5 font-semibold text-zinc-300">Cosa mi serve da te (una volta):</div>
-                  <ol className="list-decimal space-y-1 pl-4 text-zinc-500">
-                    <li>
-                      Su <span className="text-zinc-300">console.cloud.google.com</span> crea un progetto e abilita
-                      <span className="text-zinc-300"> Google Drive API</span>.
-                    </li>
-                    <li>
-                      Crea credenziali <span className="text-zinc-300">OAuth client ID</span> tipo
-                      <span className="text-zinc-300"> Web application</span>.
-                    </li>
-                    <li className="flex flex-wrap items-center gap-1">
-                      Aggiungi questo <span className="text-zinc-300">Redirect URI autorizzato</span>:
-                      <code className="rounded bg-[#0e0e10] px-1.5 py-0.5 font-mono text-[10.5px] text-zinc-300">{s?.drive.redirectUri}</code>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(s?.drive.redirectUri ?? "");
-                          setCopied(true);
-                          setTimeout(() => setCopied(false), 1200);
-                        }}
-                        className="grid h-5 w-5 place-items-center rounded text-zinc-500 hover:text-white"
-                      >
-                        {copied ? <Check size={11} /> : <Copy size={11} />}
-                      </button>
-                    </li>
-                    <li>Incolla Client ID e Client Secret qui sotto e collega.</li>
-                  </ol>
-                </div>
-                <input
-                  className={inputCls}
-                  placeholder="Google Client ID"
-                  value={drive.clientId}
-                  onChange={(e) => setDrive({ ...drive, clientId: e.target.value })}
-                />
-                <input
-                  className={inputCls}
-                  type="password"
-                  placeholder="Google Client Secret"
-                  value={drive.clientSecret}
-                  onChange={(e) => setDrive({ ...drive, clientSecret: e.target.value })}
-                />
-                <input
-                  className={inputCls}
-                  placeholder="Nome cartella radice in Drive (default: ShortFlow)"
-                  value={drive.rootFolderName}
-                  onChange={(e) => setDrive({ ...drive, rootFolderName: e.target.value })}
-                />
-                <div className="flex gap-2">
-                  <button
-                    className={ghostBtn}
-                    disabled={busy === "drive"}
-                    onClick={() =>
-                      save(
-                        { drive: { clientId: drive.clientId, clientSecret: drive.clientSecret, rootFolderName: drive.rootFolderName } },
-                        "drive"
-                      )
-                    }
-                  >
-                    {busy === "drive" ? <Loader2 size={13} className="animate-spin" /> : "Salva credenziali"}
-                  </button>
-                  <a
-                    href="/api/drive/auth"
-                    className={whiteBtn + (s?.drive.credsPresent ? "" : " pointer-events-none opacity-40")}
-                  >
-                    <CloudUpload size={13} /> Collega Google Drive
-                  </a>
-                </div>
-              </div>
-            )}
+            <div className="rounded-xl border border-[#26262b] bg-[#1d1d21] p-3 text-[11.5px] leading-relaxed text-zinc-400">
+              Presto disponibile. Per ora scarichi i caroselli come ZIP dall&apos;area Output (immagini in ordine, una
+              cartella per variante) e li carichi dove vuoi.
+            </div>
           </Section>
         </div>
       </div>

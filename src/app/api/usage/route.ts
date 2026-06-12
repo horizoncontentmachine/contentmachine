@@ -4,5 +4,5 @@ import { computeUsage } from "@/lib/settings";
 export const runtime = "nodejs";
 
 export async function GET() {
-  return NextResponse.json(computeUsage());
+  return NextResponse.json(await computeUsage());
 }

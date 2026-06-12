@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "contentmachine",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2025-03-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "contentmachine",
+      "database_id": "9e2f535d-d28c-4d67-a709-a41c8f9550c9"
+    }
+  ],
+
+  "kv_namespaces": [
+    {
+      "binding": "BLOBS",
+      "id": "31016ceb516c4e1b8cfb75183608f726"
+    }
+  ],
+
+  "observability": {
+    "enabled": true
+  }
+}

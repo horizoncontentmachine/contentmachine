@@ -1,31 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  Check,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  CloudUpload,
-  Download,
-  Loader2,
-  PanelBottomClose,
-  X,
-} from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Download, Loader2, PanelBottomClose, X } from "lucide-react";
 import { useFlowStore } from "@/store/useFlowStore";
 import { buildOutputs, type OutputGroup, type OutputSequence } from "@/lib/outputs";
-import { getJson, postJson } from "@/lib/clientApi";
+import { downloadCarousel, downloadGroups } from "@/lib/clientExport";
 import { OverlayPreview } from "./OverlayPreview";
 import type { SlideInput } from "@/lib/types";
-
-function triggerDownload(url: string) {
-  const a = document.createElement("a");
-  a.href = url;
-  a.rel = "noopener";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-}
 
 function Thumb({ slide, onOpen }: { slide: SlideInput; onOpen: () => void }) {
   return (
@@ -33,7 +14,7 @@ function Thumb({ slide, onOpen }: { slide: SlideInput; onOpen: () => void }) {
       <OverlayPreview
         spec={slide.overlay ?? null}
         width={48}
-        src={`/api/assets/${slide.assetKey}?norm=1`}
+        src={`/api/assets/${slide.assetKey}`}
         className="rounded-md ring-1 ring-[#2a2a30] transition group-hover/th:ring-zinc-400"
       />
       <span className="pointer-events-none absolute left-1 top-1 rounded bg-black/55 px-1 py-px text-[7px] font-semibold uppercase tracking-wide text-white/90">
@@ -43,25 +24,12 @@ function Thumb({ slide, onOpen }: { slide: SlideInput; onOpen: () => void }) {
   );
 }
 
-function VariantRow({
-  group,
-  projectId,
-  onOpen,
-}: {
-  group: OutputGroup;
-  projectId: string;
-  onOpen: (slides: SlideInput[], start: number) => void;
-}) {
+function VariantRow({ group, onOpen }: { group: OutputGroup; onOpen: (slides: SlideInput[], start: number) => void }) {
   const [busy, setBusy] = useState(false);
   const download = async () => {
     setBusy(true);
     try {
-      const r = await postJson<{ zipUrl: string }>("/api/export/carousel", {
-        projectId,
-        name: group.label,
-        slides: group.slides,
-      });
-      triggerDownload(r.zipUrl);
+      await downloadCarousel(group.label, group.slides);
     } finally {
       setBusy(false);
     }
@@ -86,57 +54,18 @@ function VariantRow({
   );
 }
 
-function SequenceBlock({
-  seq,
-  projectId,
-  projectName,
-  driveConnected,
-  onOpen,
-}: {
-  seq: OutputSequence;
-  projectId: string;
-  projectName: string;
-  driveConnected: boolean;
-  onOpen: (slides: SlideInput[], start: number) => void;
-}) {
+function SequenceBlock({ seq, onOpen }: { seq: OutputSequence; onOpen: (slides: SlideInput[], start: number) => void }) {
   const [busy, setBusy] = useState(false);
-  const [drive, setDrive] = useState<"idle" | "busy" | "done">("idle");
-
   const downloadAll = async () => {
     setBusy(true);
     try {
-      if (seq.variantsNodeId && seq.options) {
-        const r = await postJson<{ zipUrl: string }>("/api/export/variants", {
-          projectId,
-          name: `C${seq.carouselN}_varianti`,
-          slides: seq.groups[0]?.slides ?? [],
-          options: seq.options,
-        });
-        triggerDownload(r.zipUrl);
-      } else {
-        const r = await postJson<{ zipUrl: string }>("/api/export/carousel", {
-          projectId,
-          name: `C${seq.carouselN}`,
-          slides: seq.groups[0]?.slides ?? [],
-        });
-        triggerDownload(r.zipUrl);
+      if (seq.groups.length > 1) {
+        await downloadGroups(`C${seq.carouselN}_varianti`, seq.groups);
+      } else if (seq.groups[0]) {
+        await downloadCarousel(`C${seq.carouselN}`, seq.groups[0].slides);
       }
     } finally {
       setBusy(false);
-    }
-  };
-
-  const saveDrive = async () => {
-    setDrive("busy");
-    try {
-      await postJson("/api/drive/push", {
-        projectName,
-        groups: seq.groups.map((g) => ({ label: g.label, slides: g.slides })),
-      });
-      setDrive("done");
-      setTimeout(() => setDrive("idle"), 2500);
-    } catch {
-      setDrive("idle");
     }
   };
 
@@ -148,23 +77,6 @@ function SequenceBlock({
           {seq.groups.length} {seq.groups.length === 1 ? "versione" : "varianti"} · {seq.groups[0]?.slides.length} slide
         </span>
         <div className="flex-1" />
-        {driveConnected && (
-          <button
-            onClick={saveDrive}
-            disabled={drive === "busy"}
-            className="inline-flex items-center gap-1.5 rounded-full border border-[#2e2e34] bg-[#202024] px-3 py-1 text-[10.5px] font-medium text-zinc-300 transition hover:border-[#454550] hover:text-white disabled:opacity-40"
-            title="Salva su Google Drive"
-          >
-            {drive === "busy" ? (
-              <Loader2 size={11} className="animate-spin" />
-            ) : drive === "done" ? (
-              <Check size={11} className="text-emerald-400" />
-            ) : (
-              <CloudUpload size={11} />
-            )}
-            {drive === "done" ? "Su Drive" : "Drive"}
-          </button>
-        )}
         <button
           onClick={downloadAll}
           disabled={busy}
@@ -176,7 +88,7 @@ function SequenceBlock({
       </div>
       <div className="space-y-0.5">
         {seq.groups.map((g) => (
-          <VariantRow key={g.label} group={g} projectId={projectId} onOpen={onOpen} />
+          <VariantRow key={g.label} group={g} onOpen={onOpen} />
         ))}
       </div>
     </div>
@@ -187,7 +99,6 @@ function Lightbox({ slides, start, onClose }: { slides: SlideInput[]; start: num
   const [i, setI] = useState(start);
   const s = slides[i];
 
-  // frecce fisiche della tastiera: ← → per navigare, Esc per chiudere
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowLeft") {
@@ -213,7 +124,7 @@ function Lightbox({ slides, start, onClose }: { slides: SlideInput[]; start: num
         >
           <ChevronLeft size={20} />
         </button>
-        <OverlayPreview spec={s.overlay ?? null} width={340} src={`/api/assets/${s.assetKey}?norm=1`} className="rounded-2xl shadow-2xl" />
+        <OverlayPreview spec={s.overlay ?? null} width={340} src={`/api/assets/${s.assetKey}`} className="rounded-2xl shadow-2xl" />
         <button
           onClick={() => setI((p) => (p + 1) % slides.length)}
           className="grid h-11 w-11 place-items-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
@@ -241,13 +152,6 @@ export function OutputDock() {
   const meta = useFlowStore((s) => s.meta);
   const [open, setOpen] = useState(true);
   const [box, setBox] = useState<{ slides: SlideInput[]; start: number } | null>(null);
-  const [driveConnected, setDriveConnected] = useState(false);
-
-  useEffect(() => {
-    getJson<{ connected: boolean }>("/api/drive/status")
-      .then((r) => setDriveConnected(r.connected))
-      .catch(() => {});
-  }, []);
 
   const sequences = useMemo(() => buildOutputs(nodes, edges), [nodes, edges]);
   const totalVariants = sequences.reduce((a, s) => a + s.groups.length, 0);
@@ -274,14 +178,7 @@ export function OutputDock() {
           {open && (
             <div className="max-h-[46vh] space-y-2.5 overflow-y-auto px-3 pb-3">
               {sequences.map((seq) => (
-                <SequenceBlock
-                  key={seq.carouselId}
-                  seq={seq}
-                  projectId={meta.id}
-                  projectName={meta.name}
-                  driveConnected={driveConnected}
-                  onOpen={(slides, start) => setBox({ slides, start })}
-                />
+                <SequenceBlock key={seq.carouselId} seq={seq} onOpen={(slides, start) => setBox({ slides, start })} />
               ))}
             </div>
           )}

@@ -1,18 +1,19 @@
+import { cfEnv } from "./cf";
 import { getSettings, listLedger, listProjects } from "./db";
 import { IMAGE_COST_CENTS } from "./costs";
 import type { UsageSummary } from "./types";
 
-// La chiave OpenAI può venire dall'env (precedenza) o essere salvata dalla UI in settings.json.
-export function resolveOpenAIKey(): string | null {
-  const env = process.env.OPENAI_API_KEY?.trim();
+// La chiave OpenAI: env (precedenza) o salvata dalla UI in D1 (settings).
+export async function resolveOpenAIKey(): Promise<string | null> {
+  const env = (await cfEnv()).OPENAI_API_KEY?.trim();
   if (env) return env;
-  const saved = getSettings().openaiKey?.trim();
+  const saved = (await getSettings()).openaiKey?.trim();
   return saved || null;
 }
 
-export function openAIKeySource(): "env" | "saved" | "none" {
-  if (process.env.OPENAI_API_KEY?.trim()) return "env";
-  if (getSettings().openaiKey?.trim()) return "saved";
+export async function openAIKeySource(): Promise<"env" | "saved" | "none"> {
+  if ((await cfEnv()).OPENAI_API_KEY?.trim()) return "env";
+  if ((await getSettings()).openaiKey?.trim()) return "saved";
   return "none";
 }
 
@@ -22,16 +23,14 @@ export function maskKey(key?: string | null): string | null {
   return key.slice(0, 5) + "••••••" + key.slice(-4);
 }
 
-// Saldo = ricariche registrate − speso reale (dal ledger). OpenAI non espone il saldo
-// prepagato via API key, quindi è una stima basata su quanto l'utente dichiara di aver caricato.
-export function computeUsage(): UsageSummary {
-  const ledger = listLedger();
-  const spentCents = ledger
-    .filter((e) => !e.cacheHit && e.costCents > 0)
-    .reduce((a, e) => a + e.costCents, 0);
-  const imagesGenerated = ledger.filter((e) => !e.cacheHit && e.costCents > 0).length;
+// Saldo = ricariche registrate − speso reale (dal ledger). OpenAI non espone il saldo via API.
+export async function computeUsage(): Promise<UsageSummary> {
+  const ledger = await listLedger();
+  const real = ledger.filter((e) => !e.cacheHit && e.costCents > 0);
+  const spentCents = real.reduce((a, e) => a + e.costCents, 0);
+  const imagesGenerated = real.length;
 
-  const topupCents = getSettings().topups.reduce((a, t) => a + t.cents, 0);
+  const topupCents = (await getSettings()).topups.reduce((a, t) => a + t.cents, 0);
   const balanceCents = Math.max(0, topupCents - spentCents);
 
   const imagesRemaining = {
@@ -40,7 +39,7 @@ export function computeUsage(): UsageSummary {
     high: Math.floor(balanceCents / IMAGE_COST_CENTS.high),
   };
 
-  const byProject = listProjects()
+  const byProject = (await listProjects())
     .map((p) => ({ id: p.id, name: p.name, spentCents: p.spentCents }))
     .filter((p) => p.spentCents > 0)
     .sort((a, b) => b.spentCents - a.spentCents);

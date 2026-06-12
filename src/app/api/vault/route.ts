@@ -5,9 +5,8 @@ import type { VaultType } from "@/lib/types";
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const niche = url.searchParams.get("niche");
-  let all = listVault();
+  const niche = new URL(req.url).searchParams.get("niche");
+  let all = await listVault();
   if (niche) all = all.filter((e) => e.niche === niche || e.niche === "general");
   return NextResponse.json(all);
 }
@@ -17,13 +16,12 @@ export async function POST(req: Request) {
   const type: VaultType = ["image", "hook"].includes(body.type) ? body.type : "image";
   const text = (body.text ?? "").trim();
   if (!text) return NextResponse.json({ error: "Testo vuoto" }, { status: 400 });
-  const entry = addVaultEntry({ niche: (body.niche ?? "general").trim() || "general", type, text });
+  const entry = await addVaultEntry({ niche: (body.niche ?? "general").trim() || "general", type, text });
   return NextResponse.json(entry);
 }
 
 export async function DELETE(req: Request) {
-  const url = new URL(req.url);
-  const id = url.searchParams.get("id");
-  if (id) deleteVaultEntry(id);
+  const id = new URL(req.url).searchParams.get("id");
+  if (id) await deleteVaultEntry(id);
   return NextResponse.json({ ok: true });
 }

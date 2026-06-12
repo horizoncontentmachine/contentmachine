@@ -1,12 +1,14 @@
 "use client";
 
-// Azioni condivise tra i blocchi sulla canvas e l'inspector.
-// Tutte aggiornano busy/errors nello store, così entrambe le UI restano in sync.
+// Azioni condivise tra blocchi sulla canvas e inspector.
+// Generazione = chiamata server (OpenAI). Export = 100% browser (canvas + zip), costo zero.
 
 import { useFlowStore } from "@/store/useFlowStore";
 import { collectRefKeys, collectSlides, resolvePrompt } from "./graphResolve";
 import { postJson } from "./clientApi";
-import { activeResult, type ExportInfo, type GenResult, type ImageGenData, type VariantsData } from "./nodeData";
+import { downloadCarousel, downloadGroups } from "./clientExport";
+import { expandVariants } from "./variants";
+import { activeResult, type ExportInfo, type GenResult, type ImageGenData, type VariantsData, type CarouselData } from "./nodeData";
 
 export async function generateImage(nodeId: string) {
   const { nodes, edges, meta, setBusy, setError, updateNodeData, addSpent } = useFlowStore.getState();
@@ -24,10 +26,12 @@ export async function generateImage(nodeId: string) {
   setError(nodeId, null);
   setBusy(nodeId, true);
   try {
-    const r = await postJson<{ asset: { key: string }; cacheHit: boolean; costCents: number }>(
-      "/api/generate/image",
-      { projectId: meta.id, prompt, quality: d.quality, refKeys }
-    );
+    const r = await postJson<{ asset: { key: string }; cacheHit: boolean; costCents: number }>("/api/generate/image", {
+      projectId: meta.id,
+      prompt,
+      quality: d.quality,
+      refKeys,
+    });
     const existing = d.results.findIndex((x) => x.key === r.asset.key);
     if (existing >= 0) {
       updateNodeData(nodeId, { activeIndex: existing });
@@ -56,14 +60,9 @@ export async function exportCarousel(nodeId: string) {
   setError(nodeId, null);
   setBusy(nodeId, true);
   try {
-    const r = await postJson<{ zipUrl: string; files: string[] }>("/api/export/carousel", {
-      projectId: meta.id,
-      name: meta.name,
-      slides,
-    });
-    updateNodeData(nodeId, {
-      lastExport: { zipUrl: r.zipUrl, count: r.files.length, at: new Date().toISOString() } satisfies ExportInfo,
-    });
+    const cN = (node.data as CarouselData).n;
+    await downloadCarousel(`${meta.name}_C${cN}`, slides);
+    updateNodeData(nodeId, { lastExport: { count: slides.length, at: new Date().toISOString() } satisfies ExportInfo });
   } catch (e) {
     setError(nodeId, String(e));
   } finally {
@@ -101,21 +100,17 @@ export async function runVariants(nodeId: string) {
       .split(",")
       .map((s) => parseInt(s.trim(), 10) - 1)
       .filter((x) => !isNaN(x) && x >= 0);
-    const r = await postJson<{ count: number; zipUrl?: string; dirUrl: string }>("/api/export/variants", {
-      projectId: meta.id,
-      name: meta.name + "_varianti",
-      slides,
-      options: {
-        hookTexts,
-        shuffleBody: d.shuffleBody,
-        lockedBodyIndexes,
-        maxVariants: d.maxVariants,
-        seed: d.seed,
-      },
+    const cN = (source.data as CarouselData).n;
+    const variants = expandVariants(slides, {
+      hookTexts,
+      shuffleBody: d.shuffleBody,
+      lockedBodyIndexes,
+      maxVariants: d.maxVariants,
+      seed: d.seed,
     });
-    updateNodeData(nodeId, {
-      lastExport: { zipUrl: r.zipUrl, dirUrl: r.dirUrl, count: r.count, at: new Date().toISOString() } satisfies ExportInfo,
-    });
+    const groups = variants.map((v, i) => ({ label: `C${cN}.${i}`, slides: v.slides }));
+    const count = await downloadGroups(`${meta.name}_C${cN}_varianti`, groups);
+    updateNodeData(nodeId, { lastExport: { count, at: new Date().toISOString() } satisfies ExportInfo });
   } catch (e) {
     setError(nodeId, String(e));
   } finally {
