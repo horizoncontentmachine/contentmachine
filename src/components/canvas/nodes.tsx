@@ -155,14 +155,17 @@ export function PromptNode({ id, data, selected }: NodeProps) {
 
 // ---------- Immagine (generatore) ----------
 
-function Preview916({ src, busy, empty }: { src: string | null; busy?: boolean; empty: string }) {
+function ImagePreview({ src, busy, empty, ratio }: { src: string | null; busy?: boolean; empty: string; ratio: number }) {
   return (
     <div className="relative px-1.5">
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt="" className="aspect-[9/16] w-full rounded-xl object-cover" draggable={false} />
+        <img src={src} alt="" style={{ aspectRatio: ratio }} className="w-full rounded-xl object-cover" draggable={false} />
       ) : (
-        <div className="grid aspect-[9/16] w-full place-items-center rounded-xl border border-dashed border-[#2e2e34] bg-[#151518] px-5 text-center text-[10px] leading-relaxed text-zinc-600">
+        <div
+          style={{ aspectRatio: ratio }}
+          className="grid w-full place-items-center rounded-xl border border-dashed border-[#2e2e34] bg-[#151518] px-5 text-center text-[10px] leading-relaxed text-zinc-600"
+        >
           {empty}
         </div>
       )}
@@ -179,6 +182,7 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
   const d = data as ImageGenData;
   const busy = useFlowStore((s) => !!s.busy[id]);
   const updateNodeData = useFlowStore((s) => s.updateNodeData);
+  const fmt = PLATFORM_FORMAT[useFlowStore((s) => s.activePlatform())];
   const result = activeResult(d);
   const cost = estimateImageCents(d.quality as ImageQuality);
 
@@ -233,16 +237,17 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
         }
       />
 
-      <Preview916
+      <ImagePreview
         src={result ? `/api/assets/${result.key}?norm=1` : null}
         busy={busy}
+        ratio={fmt.w / fmt.h}
         empty="Collega un Prompt e premi ▶"
       />
 
       <div className="space-y-2.5 px-3 pb-3 pt-2.5">
         <div className="flex flex-wrap items-center gap-1.5">
           <Chip className="whitespace-nowrap">GPT Image 2</Chip>
-          <Chip className="whitespace-nowrap">9:16</Chip>
+          <Chip className="whitespace-nowrap">{fmt.ratio}</Chip>
           <select
             className="nodrag cursor-pointer rounded-full border border-[#2e2e34] bg-[#202024] px-2.5 py-[3px] text-[9px] font-medium text-zinc-400 outline-none transition hover:border-[#454550]"
             value={d.quality}
@@ -273,6 +278,7 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
 export function UploadNode({ id, data, selected }: NodeProps) {
   const d = data as UploadData;
   const busy = useFlowStore((s) => !!s.busy[id]);
+  const fmt = PLATFORM_FORMAT[useFlowStore((s) => s.activePlatform())];
   const { updateNodeData, setBusy, setError } = useFlowStore.getState();
 
   const onFile = async (f: File | null) => {
@@ -295,7 +301,7 @@ export function UploadNode({ id, data, selected }: NodeProps) {
       <Handle type="source" position={Position.Right} id="out" />
       <Head icon={<Upload size={11} />} title={`Upload #${d.n}`} />
       {d.result ? (
-        <Preview916 src={`/api/assets/${d.result.key}?norm=1`} busy={busy} empty="" />
+        <ImagePreview src={`/api/assets/${d.result.key}?norm=1`} busy={busy} ratio={fmt.w / fmt.h} empty="" />
       ) : (
         <div className="px-1.5">
           <label className="nodrag grid aspect-[9/16] w-full cursor-pointer place-items-center rounded-xl border border-dashed border-[#2e2e34] bg-[#151518] px-5 text-center text-[10px] leading-relaxed text-zinc-600 transition hover:border-zinc-500 hover:text-zinc-400">

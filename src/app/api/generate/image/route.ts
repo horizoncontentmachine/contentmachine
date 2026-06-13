@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { stableHash } from "@/lib/hash";
-import { generateImage, imageModel, OPENAI_IMAGE_SIZE } from "@/lib/openaiImages";
+import { generateImage, imageModel, DEFAULT_IMAGE_SIZE } from "@/lib/openaiImages";
 import { storeAsset, readAsset } from "@/lib/assets";
 import { addLedgerEntry, getAsset } from "@/lib/db";
 import { estimateImageCents, type ImageQuality } from "@/lib/costs";
+import { PLATFORM_FORMAT } from "@/lib/formats";
+import type { Platform } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -15,10 +17,12 @@ export async function POST(req: Request) {
     const prompt: string = (body.prompt ?? "").trim();
     const quality: ImageQuality = ["low", "medium", "high"].includes(body.quality) ? body.quality : "low";
     const refKeys: string[] = Array.isArray(body.refKeys) ? body.refKeys : [];
+    const platform = body.platform as Platform | undefined;
+    const size = platform && PLATFORM_FORMAT[platform] ? PLATFORM_FORMAT[platform].openaiSize : DEFAULT_IMAGE_SIZE;
     if (!prompt) return NextResponse.json({ error: "Prompt vuoto" }, { status: 400 });
 
     const model = await imageModel();
-    const key = "img_" + (await stableHash({ model, size: OPENAI_IMAGE_SIZE, prompt, quality, refKeys }));
+    const key = "img_" + (await stableHash({ model, size, prompt, quality, refKeys }));
 
     const cached = await getAsset(key);
     if (cached) {
@@ -32,7 +36,7 @@ export async function POST(req: Request) {
       if (a) refs.push(new Uint8Array(a.bytes));
     }
 
-    const bytes = await generateImage({ prompt, quality, refs });
+    const bytes = await generateImage({ prompt, quality, size, refs });
     const costCents = estimateImageCents(quality);
     const rec = await storeAsset({ key, kind: "image", bytes, ext: "png", model, prompt, costCents });
     await addLedgerEntry({ projectId, model, label: prompt.slice(0, 80), costCents, cacheHit: false });

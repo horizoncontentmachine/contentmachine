@@ -8,12 +8,13 @@ export interface PlatformFormat {
   w: number;
   h: number;
   maxImages: number;
+  openaiSize: string; // dimensione nativa più vicina per la generazione gpt-image (poi cover-crop)
 }
 
 export const PLATFORM_FORMAT: Record<Platform, PlatformFormat> = {
-  tiktok: { platform: "tiktok", label: "TikTok", ratio: "9:16", w: 1080, h: 1920, maxImages: 35 },
-  instagram: { platform: "instagram", label: "Instagram", ratio: "4:5", w: 1080, h: 1350, maxImages: 20 },
-  x: { platform: "x", label: "X", ratio: "1:1", w: 1080, h: 1080, maxImages: 4 },
+  tiktok: { platform: "tiktok", label: "TikTok", ratio: "9:16", w: 1080, h: 1920, maxImages: 35, openaiSize: "1024x1536" },
+  instagram: { platform: "instagram", label: "Instagram", ratio: "4:5", w: 1080, h: 1350, maxImages: 20, openaiSize: "1024x1536" },
+  x: { platform: "x", label: "X", ratio: "1:1", w: 1080, h: 1080, maxImages: 4, openaiSize: "1024x1024" },
 };
 
 export const CANVAS_WIDTH = 1080;

@@ -36,6 +36,7 @@ export async function generateImage(nodeId: string) {
       prompt,
       quality: d.quality,
       refKeys,
+      platform: useFlowStore.getState().activePlatform(),
     });
     const existing = d.results.findIndex((x) => x.key === r.asset.key);
     if (existing >= 0) {
