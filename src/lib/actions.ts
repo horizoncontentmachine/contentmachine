@@ -7,7 +7,12 @@ import { useFlowStore } from "@/store/useFlowStore";
 import { collectRefKeys, collectSlides, resolvePrompt } from "./graphResolve";
 import { postJson } from "./clientApi";
 import { downloadCarousel, downloadGroups } from "./clientExport";
+import { PLATFORM_FORMAT } from "./formats";
 import { expandVariants } from "./variants";
+
+function activeFmtH(): number {
+  return PLATFORM_FORMAT[useFlowStore.getState().activePlatform()].h;
+}
 import { activeResult, type ExportInfo, type GenResult, type ImageGenData, type VariantsData, type CarouselData } from "./nodeData";
 
 export async function generateImage(nodeId: string) {
@@ -61,7 +66,7 @@ export async function exportCarousel(nodeId: string) {
   setBusy(nodeId, true);
   try {
     const cN = (node.data as CarouselData).n;
-    await downloadCarousel(`${meta.name}_C${cN}`, slides);
+    await downloadCarousel(`${meta.name}_C${cN}`, slides, activeFmtH());
     updateNodeData(nodeId, { lastExport: { count: slides.length, at: new Date().toISOString() } satisfies ExportInfo });
   } catch (e) {
     setError(nodeId, String(e));
@@ -109,7 +114,7 @@ export async function runVariants(nodeId: string) {
       seed: d.seed,
     });
     const groups = variants.map((v, i) => ({ label: `C${cN}.${i}`, slides: v.slides }));
-    const count = await downloadGroups(`${meta.name}_C${cN}_varianti`, groups);
+    const count = await downloadGroups(`${meta.name}_C${cN}_varianti`, groups, activeFmtH());
     updateNodeData(nodeId, { lastExport: { count, at: new Date().toISOString() } satisfies ExportInfo });
   } catch (e) {
     setError(nodeId, String(e));

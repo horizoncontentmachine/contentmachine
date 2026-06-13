@@ -11,7 +11,7 @@ import {
   type Node,
   type NodeChange,
 } from "@xyflow/react";
-import { DEFAULT_OVERLAY, type Project } from "@/lib/types";
+import { DEFAULT_OVERLAY, type Platform, type Project, type Workflow } from "@/lib/types";
 import type { NodeKind } from "@/lib/nodeData";
 
 interface Meta {
@@ -26,8 +26,17 @@ interface Clip {
   edges: Edge[];
 }
 
+interface WorkflowMeta {
+  id: string;
+  name: string;
+  platform: Platform;
+}
+
 interface FlowState {
   meta: Meta | null;
+  workflows: WorkflowMeta[];
+  activeWf: string | null;
+  wfGraphs: Record<string, { nodes: Node[]; edges: Edge[] }>;
   nodes: Node[];
   edges: Edge[];
   selectedId: string | null;
@@ -40,6 +49,9 @@ interface FlowState {
   saving: boolean;
 
   load: (p: Project) => void;
+  switchWorkflow: (id: string) => void;
+  workflowsForSave: () => Workflow[];
+  activePlatform: () => Platform;
   onNodesChange: (changes: NodeChange[]) => void;
   onEdgesChange: (changes: EdgeChange[]) => void;
   onConnect: (conn: Connection) => void;
@@ -154,6 +166,9 @@ let lastEditAt = 0;
 
 export const useFlowStore = create<FlowState>((set, get) => ({
   meta: null,
+  workflows: [],
+  activeWf: null,
+  wfGraphs: {},
   nodes: [],
   edges: [],
   selectedId: null,
@@ -165,16 +180,55 @@ export const useFlowStore = create<FlowState>((set, get) => ({
   dirty: false,
   saving: false,
 
-  load: (p) =>
+  load: (p) => {
+    const graphs: Record<string, { nodes: Node[]; edges: Edge[] }> = {};
+    p.workflows.forEach((w) => {
+      graphs[w.id] = { nodes: (w.graph.nodes as Node[]) ?? [], edges: (w.graph.edges as Edge[]) ?? [] };
+    });
+    const active = p.workflows[0]?.id ?? null;
     set({
       meta: { id: p.id, name: p.name, niche: p.niche, spentCents: p.spentCents },
-      nodes: (p.graph?.nodes as Node[]) ?? [],
-      edges: (p.graph?.edges as Edge[]) ?? [],
+      workflows: p.workflows.map((w) => ({ id: w.id, name: w.name, platform: w.platform })),
+      wfGraphs: graphs,
+      activeWf: active,
+      nodes: active ? graphs[active].nodes : [],
+      edges: active ? graphs[active].edges : [],
       selectedId: null,
       past: [],
       future: [],
       dirty: false,
-    }),
+    });
+  },
+
+  switchWorkflow: (id) => {
+    const s = get();
+    if (id === s.activeWf || !s.wfGraphs[id]) return;
+    const graphs = { ...s.wfGraphs };
+    if (s.activeWf) graphs[s.activeWf] = { nodes: s.nodes, edges: s.edges };
+    set({
+      wfGraphs: graphs,
+      activeWf: id,
+      nodes: graphs[id].nodes,
+      edges: graphs[id].edges,
+      selectedId: null,
+      past: [],
+      future: [],
+      dirty: true,
+    });
+  },
+
+  workflowsForSave: () => {
+    const s = get();
+    return s.workflows.map((w) => ({
+      ...w,
+      graph: w.id === s.activeWf ? { nodes: s.nodes, edges: s.edges } : s.wfGraphs[w.id] ?? { nodes: [], edges: [] },
+    }));
+  },
+
+  activePlatform: () => {
+    const s = get();
+    return s.workflows.find((w) => w.id === s.activeWf)?.platform ?? "tiktok";
+  },
 
   // Salva lo stato corrente nello stack undo (chiamare PRIMA di una modifica strutturale).
   commit: () =>

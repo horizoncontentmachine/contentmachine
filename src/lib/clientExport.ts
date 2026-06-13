@@ -37,9 +37,9 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath();
 }
 
-function drawOverlay(ctx: CanvasRenderingContext2D, spec?: OverlaySpec | null) {
+function drawOverlay(ctx: CanvasRenderingContext2D, h: number, spec?: OverlaySpec | null) {
   if (!spec || !spec.text?.trim()) return;
-  const lay = layoutOverlay(spec, CANVAS_W, CANVAS_H);
+  const lay = layoutOverlay(spec, CANVAS_W, h);
   if (!lay) return;
   const cx = CANVAS_W / 2;
   const outline = spec.style === "outline";
@@ -68,33 +68,33 @@ function drawOverlay(ctx: CanvasRenderingContext2D, spec?: OverlaySpec | null) {
   });
 }
 
-async function renderSlideBlob(slide: SlideInput): Promise<Blob> {
+async function renderSlideBlob(slide: SlideInput, fmtH: number): Promise<Blob> {
   const canvas = document.createElement("canvas");
   canvas.width = CANVAS_W;
-  canvas.height = CANVAS_H;
+  canvas.height = fmtH;
   const ctx = canvas.getContext("2d")!;
   ctx.fillStyle = "#000";
-  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  ctx.fillRect(0, 0, CANVAS_W, fmtH);
 
   const img = await loadImage(`/api/assets/${slide.assetKey}`);
-  const scale = Math.max(CANVAS_W / img.width, CANVAS_H / img.height);
+  const scale = Math.max(CANVAS_W / img.width, fmtH / img.height);
   const w = img.width * scale;
   const h = img.height * scale;
-  ctx.drawImage(img, (CANVAS_W - w) / 2, (CANVAS_H - h) / 2, w, h);
+  ctx.drawImage(img, (CANVAS_W - w) / 2, (fmtH - h) / 2, w, h);
 
-  drawOverlay(ctx, slide.overlay);
+  drawOverlay(ctx, fmtH, slide.overlay);
 
   return new Promise((res) => canvas.toBlob((b) => res(b!), "image/png"));
 }
 
-async function renderSlidePng(slide: SlideInput): Promise<Uint8Array> {
-  return new Uint8Array(await (await renderSlideBlob(slide)).arrayBuffer());
+async function renderSlidePng(slide: SlideInput, fmtH: number): Promise<Uint8Array> {
+  return new Uint8Array(await (await renderSlideBlob(slide, fmtH)).arrayBuffer());
 }
 
-// PNG finali (con overlay) pronti per la pubblicazione.
-export async function renderSlideBlobs(slides: SlideInput[]): Promise<Blob[]> {
+// PNG finali (con overlay) pronti per la pubblicazione, nel formato della piattaforma.
+export async function renderSlideBlobs(slides: SlideInput[], fmtH: number = CANVAS_H): Promise<Blob[]> {
   const out: Blob[] = [];
-  for (const s of slides) out.push(await renderSlideBlob(s));
+  for (const s of slides) out.push(await renderSlideBlob(s, fmtH));
   return out;
 }
 
@@ -113,21 +113,21 @@ function safe(s: string): string {
   return (s || "export").replace(/[^a-zA-Z0-9_.-]+/g, "_").slice(0, 60);
 }
 
-// Un singolo carosello → zip di PNG numerati.
-export async function downloadCarousel(name: string, slides: SlideInput[]): Promise<void> {
+// Un singolo carosello → zip di PNG numerati, nel formato dato.
+export async function downloadCarousel(name: string, slides: SlideInput[], fmtH: number = CANVAS_H): Promise<void> {
   const files: Record<string, Uint8Array> = {};
   for (let i = 0; i < slides.length; i++) {
-    files[`${String(i + 1).padStart(2, "0")}_${slides[i].role}.png`] = await renderSlidePng(slides[i]);
+    files[`${String(i + 1).padStart(2, "0")}_${slides[i].role}.png`] = await renderSlidePng(slides[i], fmtH);
   }
   triggerDownload(zipSync(files), `${safe(name)}.zip`, "application/zip");
 }
 
 // Più varianti → zip con una cartella per variante (C1.0/, C1.1/, …).
-export async function downloadGroups(name: string, groups: { label: string; slides: SlideInput[] }[]): Promise<number> {
+export async function downloadGroups(name: string, groups: { label: string; slides: SlideInput[] }[], fmtH: number = CANVAS_H): Promise<number> {
   const files: Record<string, Uint8Array> = {};
   for (const g of groups) {
     for (let i = 0; i < g.slides.length; i++) {
-      files[`${safe(g.label)}/${String(i + 1).padStart(2, "0")}_${g.slides[i].role}.png`] = await renderSlidePng(g.slides[i]);
+      files[`${safe(g.label)}/${String(i + 1).padStart(2, "0")}_${g.slides[i].role}.png`] = await renderSlidePng(g.slides[i], fmtH);
     }
   }
   triggerDownload(zipSync(files), `${safe(name)}.zip`, "application/zip");

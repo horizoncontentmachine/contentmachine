@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPublisher } from "@/lib/publish";
 import { createPost, getAccount, uidLong } from "@/lib/db";
+import { PLATFORM_FORMAT } from "@/lib/formats";
 import type { Platform, PostRecord, SlideInput } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -44,7 +45,9 @@ export async function POST(req: Request) {
         continue;
       }
       platforms.add(a.platform);
-      const res = await publisher.publishPhotos({ profile: a.providerProfile, platforms: [a.platform], images, caption });
+      const max = PLATFORM_FORMAT[a.platform].maxImages;
+      const imgs = images.slice(0, max); // rispetta il limite della piattaforma (es. X = 4)
+      const res = await publisher.publishPhotos({ profile: a.providerProfile, platforms: [a.platform], images: imgs, caption });
       results.push({ accountId: accId, platform: a.platform, handle: a.handle, ok: res.ok, error: res.error });
     }
 

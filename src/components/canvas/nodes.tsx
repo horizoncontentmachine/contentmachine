@@ -33,6 +33,7 @@ import {
 } from "@/lib/nodeData";
 import type { OverlaySpec } from "@/lib/types";
 import { OverlayPreview } from "@/components/OverlayPreview";
+import { PLATFORM_FORMAT } from "@/lib/formats";
 
 // ---------- primitive ----------
 
@@ -341,6 +342,7 @@ export function OverlayNode({ id, data, selected }: NodeProps) {
   const input = findInputNode(nodes, edges, id, "in");
   const out = input ? nodeOutput(nodes, edges, input) : null;
   const ov = d.overlay as OverlaySpec;
+  const fmtH = PLATFORM_FORMAT[useFlowStore((s) => s.activePlatform())].h;
 
   return (
     <Card selected={selected} width={224}>
@@ -351,6 +353,7 @@ export function OverlayNode({ id, data, selected }: NodeProps) {
         <OverlayPreview
           spec={ov}
           width={209}
+          fmtH={fmtH}
           src={out ? `/api/assets/${out.assetKey}?norm=1` : null}
           className="rounded-xl"
         />

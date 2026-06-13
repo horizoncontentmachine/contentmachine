@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Node } from "@xyflow/react";
 import { LayoutGrid, CalendarClock, AtSign, History } from "lucide-react";
 import { useFlowStore } from "@/store/useFlowStore";
 import { Flow } from "./canvas/Flow";
@@ -12,7 +11,42 @@ import { OutputDock } from "./OutputDock";
 import { AccountsPanel } from "./distribution/AccountsPanel";
 import { HistoryPanel } from "./distribution/HistoryPanel";
 import { CalendarPanel } from "./distribution/CalendarPanel";
+import { PLATFORM_FORMAT } from "@/lib/formats";
+import type { Node as RFNode } from "@xyflow/react";
 import type { Project } from "@/lib/types";
+
+const PLAT_BADGE = { instagram: "IG", tiktok: "TT", x: "X" } as const;
+
+function WorkflowBar() {
+  const workflows = useFlowStore((s) => s.workflows);
+  const activeWf = useFlowStore((s) => s.activeWf);
+  const switchWorkflow = useFlowStore((s) => s.switchWorkflow);
+  if (workflows.length <= 1) return null;
+  return (
+    <div className="flex items-center gap-1.5 border-b border-[#1e1e22] bg-[#121214] px-3 py-1.5">
+      <span className="mr-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-zinc-600">Workflow</span>
+      {workflows.map((w) => {
+        const f = PLATFORM_FORMAT[w.platform];
+        const on = w.id === activeWf;
+        return (
+          <button
+            key={w.id}
+            onClick={() => switchWorkflow(w.id)}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium transition ${
+              on ? "bg-[#26262c] text-zinc-100" : "text-zinc-500 hover:text-zinc-200"
+            }`}
+          >
+            <span className={`grid h-4 w-5 place-items-center rounded text-[8px] font-bold ${on ? "bg-white text-black" : "bg-[#2e2e34] text-zinc-400"}`}>
+              {PLAT_BADGE[w.platform]}
+            </span>
+            {w.name}
+            <span className="text-[9px] text-zinc-600">{f.ratio}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 type View = "crea" | "calendario" | "account" | "storico";
 const VIEWS: { id: View; label: string; icon: React.ReactNode }[] = [
@@ -50,13 +84,21 @@ export function ProjectCanvas({ projectId }: { projectId: string }) {
   const meta = useFlowStore((s) => s.meta);
   const dirty = useFlowStore((s) => s.dirty);
 
-  // payload sempre aggiornato per il salvataggio sincrono (beacon/unmount)
+  const activeWf = useFlowStore((s) => s.activeWf);
+
+  // payload sempre aggiornato per il salvataggio sincrono (beacon/unmount): tutti i workflow
   const payloadRef = useRef<string>("");
   useEffect(() => {
     if (!meta) return;
-    const clean = (nodes as Node[]).map(({ selected, dragging, ...n }) => n); // eslint-disable-line @typescript-eslint/no-unused-vars
-    payloadRef.current = JSON.stringify({ graph: { nodes: clean, edges }, name: meta.name, niche: meta.niche });
-  }, [nodes, edges, meta]);
+    const wfs = useFlowStore.getState().workflowsForSave().map((w) => ({
+      ...w,
+      graph: {
+        nodes: (w.graph.nodes as RFNode[]).map(({ selected, dragging, ...n }) => n), // eslint-disable-line @typescript-eslint/no-unused-vars
+        edges: w.graph.edges,
+      },
+    }));
+    payloadRef.current = JSON.stringify({ workflows: wfs, name: meta.name, niche: meta.niche });
+  }, [nodes, edges, meta, activeWf]);
 
   const save = useCallback(async () => {
     const m = useFlowStore.getState().meta;
@@ -121,7 +163,9 @@ export function ProjectCanvas({ projectId }: { projectId: string }) {
       </div>
 
       {view === "crea" ? (
-        <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1 flex-col">
+          <WorkflowBar />
+          <div className="flex min-h-0 flex-1">
           <div className="relative min-w-0 flex-1">
             <Flow />
             <OutputDock />
@@ -143,6 +187,7 @@ export function ProjectCanvas({ projectId }: { projectId: string }) {
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">{tab === "node" ? <Inspector /> : <VaultPanel />}</div>
+          </div>
           </div>
         </div>
       ) : (

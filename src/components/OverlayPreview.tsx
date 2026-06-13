@@ -17,14 +17,16 @@ export function OverlayPreview({
   src,
   videoSrc,
   className,
+  fmtH = 1920,
 }: {
   spec: OverlaySpec | null;
   width: number;
   src?: string | null;
   videoSrc?: string | null;
   className?: string;
+  fmtH?: number; // altezza del formato per larghezza 1080 (9:16=1920, 4:5=1350, 1:1=1080)
 }) {
-  const height = (width * 1920) / 1080;
+  const height = (width * fmtH) / 1080;
   const lay = spec ? layoutOverlay(spec, width, height) : null;
   return (
     <div

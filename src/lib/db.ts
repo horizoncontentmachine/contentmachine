@@ -9,6 +9,7 @@ import {
   type Project,
   type SocialAccount,
   type VaultEntry,
+  type Workflow,
 } from "./types";
 
 // Storage su Cloudflare D1 (JSON-blob): projects in tabella dedicata, il resto in tabella kv.
@@ -16,6 +17,23 @@ import {
 
 function uid(): string {
   return crypto.randomUUID().slice(0, 8);
+}
+
+// I 3 workflow standard di un progetto (IG/TikTok/X), opzionalmente con un grafo iniziale su TikTok.
+function defaultWorkflows(legacy?: { nodes: unknown[]; edges: unknown[] }): Workflow[] {
+  const empty = () => ({ nodes: [], edges: [] });
+  return [
+    { id: uid(), name: "Instagram", platform: "instagram" as Platform, graph: empty() },
+    { id: uid(), name: "TikTok", platform: "tiktok" as Platform, graph: legacy ?? empty() },
+    { id: uid(), name: "X", platform: "x" as Platform, graph: empty() },
+  ];
+}
+
+// Migrazione: i progetti vecchi hanno `graph` singolo → diventa il workflow TikTok.
+function migrate(p: Project): Project {
+  if (p.workflows && p.workflows.length) return p;
+  const { graph, ...rest } = p;
+  return { ...rest, workflows: defaultWorkflows(graph as { nodes: unknown[]; edges: unknown[] } | undefined) };
 }
 
 // ---- kv generico ----
@@ -38,12 +56,12 @@ export async function listProjects(): Promise<Project[]> {
   const { results } = await (await db())
     .prepare("SELECT data FROM projects ORDER BY updatedAt DESC")
     .all<{ data: string }>();
-  return (results ?? []).map((r) => JSON.parse(r.data) as Project);
+  return (results ?? []).map((r) => migrate(JSON.parse(r.data) as Project));
 }
 
 export async function getProject(id: string): Promise<Project | null> {
   const row = await (await db()).prepare("SELECT data FROM projects WHERE id=?").bind(id).first<{ data: string }>();
-  return row ? (JSON.parse(row.data) as Project) : null;
+  return row ? migrate(JSON.parse(row.data) as Project) : null;
 }
 
 export async function saveProject(p: Project): Promise<void> {
@@ -62,7 +80,7 @@ export async function createProject(name: string, niche: string): Promise<Projec
     id: uid(),
     name,
     niche,
-    graph: { nodes: [], edges: [] },
+    workflows: defaultWorkflows(),
     spentCents: 0,
     createdAt: now,
     updatedAt: now,

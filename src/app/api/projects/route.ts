@@ -12,8 +12,9 @@ export async function POST(req: Request) {
   const name = (body.name ?? "").trim() || "Nuovo progetto";
   const niche = (body.niche ?? "").trim() || "general";
   const p = await createProject(name, niche);
-  if (body.graph) {
-    p.graph = body.graph;
+  // duplicazione: copia i workflow del progetto sorgente
+  if (Array.isArray(body.workflows) && body.workflows.length) {
+    p.workflows = body.workflows;
     await saveProject(p);
   }
   return NextResponse.json(p);

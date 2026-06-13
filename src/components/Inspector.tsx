@@ -17,6 +17,7 @@ import {
 } from "@/lib/nodeData";
 import type { OverlaySpec } from "@/lib/types";
 import { OverlayPreview } from "./OverlayPreview";
+import { PLATFORM_FORMAT } from "@/lib/formats";
 
 // ---------- widget ----------
 
@@ -159,11 +160,12 @@ function OverlayInspector({ node }: { node: Node }) {
   const out = input ? nodeOutput(nodes, edges, input) : null;
   const set = (patch: Partial<OverlaySpec>) => updateNodeData(node.id, { overlay: { ...ov, ...patch } });
   const outline = ov.style === "outline";
+  const fmtH = PLATFORM_FORMAT[useFlowStore((s) => s.activePlatform())].h;
 
   return (
     <div className="space-y-4">
       <div className="flex justify-center">
-        <OverlayPreview spec={ov} width={170} src={out ? `/api/assets/${out.assetKey}?norm=1` : null} className="rounded-xl" />
+        <OverlayPreview spec={ov} width={170} fmtH={fmtH} src={out ? `/api/assets/${out.assetKey}?norm=1` : null} className="rounded-xl" />
       </div>
       <Field label="Testo" hint="a capo = nuova riga">
         <textarea className={inputCls} rows={3} value={ov.text} onChange={(e) => set({ text: e.target.value })} />

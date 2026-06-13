@@ -6,17 +6,22 @@ import { Check, Loader2, Send, X } from "lucide-react";
 import { getJson } from "@/lib/clientApi";
 import { renderSlideBlobs } from "@/lib/clientExport";
 import { OverlayPreview } from "@/components/OverlayPreview";
+import { PLATFORM_FORMAT } from "@/lib/formats";
 import { PLATFORM_LABEL, type Platform, type SlideInput, type SocialAccount } from "@/lib/types";
 
 const BADGE: Record<Platform, string> = { instagram: "IG", tiktok: "TT", x: "X" };
 
 export function PublishDialog({
   projectId,
+  platform,
+  fmtH,
   label,
   slides,
   onClose,
 }: {
   projectId: string;
+  platform: Platform;
+  fmtH: number;
   label: string;
   slides: SlideInput[];
   onClose: () => void;
@@ -27,15 +32,19 @@ export function PublishDialog({
   const [state, setState] = useState<"idle" | "publishing" | "done">("idle");
   const [error, setError] = useState<string | null>(null);
 
+  const maxImages = PLATFORM_FORMAT[platform].maxImages;
+  const willTrim = slides.length > maxImages;
+
   useEffect(() => {
     getJson<{ accounts: SocialAccount[] }>(`/api/projects/${projectId}/accounts`)
       .then((r) => {
-        const connected = r.accounts.filter((a) => a.status === "connected");
+        // solo gli account della piattaforma di questo workflow
+        const connected = r.accounts.filter((a) => a.status === "connected" && a.platform === platform);
         setAccounts(connected);
         setPicked(new Set(connected.map((a) => a.id)));
       })
       .catch(() => setAccounts([]));
-  }, [projectId]);
+  }, [projectId, platform]);
 
   const toggle = (id: string) =>
     setPicked((s) => {
@@ -49,7 +58,7 @@ export function PublishDialog({
     setError(null);
     setState("publishing");
     try {
-      const blobs = await renderSlideBlobs(slides);
+      const blobs = await renderSlideBlobs(slides, fmtH);
       const fd = new FormData();
       fd.append("projectId", projectId);
       fd.append("accountIds", [...picked].join(","));
@@ -83,11 +92,20 @@ export function PublishDialog({
         </div>
 
         <div className="space-y-4 p-4">
+          <div className="flex items-center gap-2 text-[10px] text-zinc-500">
+            <span className="grid h-4 w-5 place-items-center rounded bg-[#2e2e34] text-[8px] font-bold text-zinc-300">{BADGE[platform]}</span>
+            {PLATFORM_LABEL[platform]} · {PLATFORM_FORMAT[platform].ratio}
+          </div>
           <div className="flex gap-1.5 overflow-x-auto pb-1">
             {slides.map((s, i) => (
-              <OverlayPreview key={i} spec={s.overlay ?? null} width={44} src={`/api/assets/${s.assetKey}`} className="shrink-0 rounded-md ring-1 ring-[#2a2a30]" />
+              <OverlayPreview key={i} spec={s.overlay ?? null} width={44} fmtH={fmtH} src={`/api/assets/${s.assetKey}`} className="shrink-0 rounded-md ring-1 ring-[#2a2a30]" />
             ))}
           </div>
+          {willTrim && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-[10.5px] text-amber-200">
+              {PLATFORM_LABEL[platform]} accetta max {maxImages} immagini: verranno usate solo le prime {maxImages}.
+            </div>
+          )}
 
           <div>
             <div className="mb-1.5 text-[9.5px] font-semibold uppercase tracking-[0.1em] text-zinc-500">Account ({picked.size} selezionati)</div>

@@ -5,21 +5,23 @@ import { ChevronDown, ChevronLeft, ChevronRight, Download, Loader2, PanelBottomC
 import { useFlowStore } from "@/store/useFlowStore";
 import { buildOutputs, type OutputGroup, type OutputSequence } from "@/lib/outputs";
 import { downloadCarousel, downloadGroups } from "@/lib/clientExport";
+import { PLATFORM_FORMAT } from "@/lib/formats";
 import { OverlayPreview } from "./OverlayPreview";
 import { PublishDialog } from "./distribution/PublishDialog";
-import type { SlideInput } from "@/lib/types";
+import type { Platform, SlideInput } from "@/lib/types";
 
 interface PubTarget {
   label: string;
   slides: SlideInput[];
 }
 
-function Thumb({ slide, onOpen }: { slide: SlideInput; onOpen: () => void }) {
+function Thumb({ slide, fmtH, onOpen }: { slide: SlideInput; fmtH: number; onOpen: () => void }) {
   return (
     <button onClick={onOpen} className="group/th relative shrink-0" title={slide.role}>
       <OverlayPreview
         spec={slide.overlay ?? null}
         width={48}
+        fmtH={fmtH}
         src={`/api/assets/${slide.assetKey}`}
         className="rounded-md ring-1 ring-[#2a2a30] transition group-hover/th:ring-zinc-400"
       />
@@ -32,10 +34,12 @@ function Thumb({ slide, onOpen }: { slide: SlideInput; onOpen: () => void }) {
 
 function VariantRow({
   group,
+  fmtH,
   onOpen,
   onPublish,
 }: {
   group: OutputGroup;
+  fmtH: number;
   onOpen: (slides: SlideInput[], start: number) => void;
   onPublish: (t: PubTarget) => void;
 }) {
@@ -43,7 +47,7 @@ function VariantRow({
   const download = async () => {
     setBusy(true);
     try {
-      await downloadCarousel(group.label, group.slides);
+      await downloadCarousel(group.label, group.slides, fmtH);
     } finally {
       setBusy(false);
     }
@@ -53,7 +57,7 @@ function VariantRow({
       <span className="w-12 shrink-0 font-mono text-[11px] font-semibold text-zinc-400">{group.label}</span>
       <div className="flex flex-1 items-center gap-1.5 overflow-x-auto pb-0.5">
         {group.slides.map((s, i) => (
-          <Thumb key={i} slide={s} onOpen={() => onOpen(group.slides, i)} />
+          <Thumb key={i} slide={s} fmtH={fmtH} onOpen={() => onOpen(group.slides, i)} />
         ))}
       </div>
       <button
@@ -77,10 +81,12 @@ function VariantRow({
 
 function SequenceBlock({
   seq,
+  fmtH,
   onOpen,
   onPublish,
 }: {
   seq: OutputSequence;
+  fmtH: number;
   onOpen: (slides: SlideInput[], start: number) => void;
   onPublish: (t: PubTarget) => void;
 }) {
@@ -89,9 +95,9 @@ function SequenceBlock({
     setBusy(true);
     try {
       if (seq.groups.length > 1) {
-        await downloadGroups(`C${seq.carouselN}_varianti`, seq.groups);
+        await downloadGroups(`C${seq.carouselN}_varianti`, seq.groups, fmtH);
       } else if (seq.groups[0]) {
-        await downloadCarousel(`C${seq.carouselN}`, seq.groups[0].slides);
+        await downloadCarousel(`C${seq.carouselN}`, seq.groups[0].slides, fmtH);
       }
     } finally {
       setBusy(false);
@@ -117,14 +123,14 @@ function SequenceBlock({
       </div>
       <div className="space-y-0.5">
         {seq.groups.map((g) => (
-          <VariantRow key={g.label} group={g} onOpen={onOpen} onPublish={onPublish} />
+          <VariantRow key={g.label} group={g} fmtH={fmtH} onOpen={onOpen} onPublish={onPublish} />
         ))}
       </div>
     </div>
   );
 }
 
-function Lightbox({ slides, start, onClose }: { slides: SlideInput[]; start: number; onClose: () => void }) {
+function Lightbox({ slides, start, fmtH, onClose }: { slides: SlideInput[]; start: number; fmtH: number; onClose: () => void }) {
   const [i, setI] = useState(start);
   const s = slides[i];
 
@@ -153,7 +159,7 @@ function Lightbox({ slides, start, onClose }: { slides: SlideInput[]; start: num
         >
           <ChevronLeft size={20} />
         </button>
-        <OverlayPreview spec={s.overlay ?? null} width={340} src={`/api/assets/${s.assetKey}`} className="rounded-2xl shadow-2xl" />
+        <OverlayPreview spec={s.overlay ?? null} width={fmtH >= 1920 ? 340 : 420} fmtH={fmtH} src={`/api/assets/${s.assetKey}`} className="rounded-2xl shadow-2xl" />
         <button
           onClick={() => setI((p) => (p + 1) % slides.length)}
           className="grid h-11 w-11 place-items-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
@@ -179,9 +185,14 @@ export function OutputDock() {
   const nodes = useFlowStore((s) => s.nodes);
   const edges = useFlowStore((s) => s.edges);
   const meta = useFlowStore((s) => s.meta);
+  const activeWf = useFlowStore((s) => s.activeWf);
+  const workflows = useFlowStore((s) => s.workflows);
   const [open, setOpen] = useState(true);
   const [box, setBox] = useState<{ slides: SlideInput[]; start: number } | null>(null);
   const [pub, setPub] = useState<PubTarget | null>(null);
+
+  const platform: Platform = workflows.find((w) => w.id === activeWf)?.platform ?? "tiktok";
+  const fmtH = PLATFORM_FORMAT[platform].h;
 
   const sequences = useMemo(() => buildOutputs(nodes, edges), [nodes, edges]);
   const totalVariants = sequences.reduce((a, s) => a + s.groups.length, 0);
@@ -211,6 +222,7 @@ export function OutputDock() {
                 <SequenceBlock
                   key={seq.carouselId}
                   seq={seq}
+                  fmtH={fmtH}
                   onOpen={(slides, start) => setBox({ slides, start })}
                   onPublish={setPub}
                 />
@@ -219,8 +231,17 @@ export function OutputDock() {
           )}
         </div>
       </div>
-      {box && <Lightbox slides={box.slides} start={box.start} onClose={() => setBox(null)} />}
-      {pub && <PublishDialog projectId={meta.id} label={pub.label} slides={pub.slides} onClose={() => setPub(null)} />}
+      {box && <Lightbox slides={box.slides} start={box.start} fmtH={fmtH} onClose={() => setBox(null)} />}
+      {pub && (
+        <PublishDialog
+          projectId={meta.id}
+          platform={platform}
+          fmtH={fmtH}
+          label={pub.label}
+          slides={pub.slides}
+          onClose={() => setPub(null)}
+        />
+      )}
     </>
   );
 }

@@ -17,7 +17,10 @@ export async function PUT(req: Request, { params }: Ctx) {
   const p = await getProject(id);
   if (!p) return NextResponse.json({ error: "Progetto non trovato" }, { status: 404 });
   const body = await req.json().catch(() => ({}));
-  if (body.graph) p.graph = body.graph;
+  if (Array.isArray(body.workflows)) {
+    p.workflows = body.workflows;
+    delete p.graph; // ripulisce il vecchio campo legacy
+  }
   if (typeof body.name === "string" && body.name.trim()) p.name = body.name.trim();
   if (typeof body.niche === "string") p.niche = body.niche.trim();
   await saveProject(p);

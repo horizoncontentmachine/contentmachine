@@ -38,7 +38,7 @@ export default function Home() {
     await fetch("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: p.name + " (copia)", niche: p.niche, graph: full.graph }),
+      body: JSON.stringify({ name: p.name + " (copia)", niche: p.niche, workflows: full.workflows }),
     });
     reload();
   };

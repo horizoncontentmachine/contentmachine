@@ -49,11 +49,26 @@ export interface SlideInput {
   overlay?: OverlaySpec | null;
 }
 
+export interface Graph {
+  nodes: unknown[];
+  edges: unknown[];
+  viewport?: unknown;
+}
+
+// Un workflow = una canvas dedicata a una piattaforma (con il suo formato).
+export interface Workflow {
+  id: string;
+  name: string;
+  platform: Platform;
+  graph: Graph;
+}
+
 export interface Project {
   id: string;
   name: string;
   niche: string;
-  graph: { nodes: unknown[]; edges: unknown[]; viewport?: unknown };
+  workflows: Workflow[];
+  graph?: Graph; // legacy (pre-workflow): migrato in workflows alla lettura
   spentCents: number;
   createdAt: string;
   updatedAt: string;
