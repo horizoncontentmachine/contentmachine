@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDuePosts, updatePostStatus, requeueStuck } from "@/lib/db";
 import { runScheduledPost } from "@/lib/publish/run";
+import { refreshMetrics } from "@/lib/metrics";
 import { cfEnv } from "@/lib/cf";
 
 export const runtime = "nodejs";
@@ -32,7 +33,15 @@ async function handle(req: Request) {
     }
   }
 
-  return NextResponse.json({ processed: out.length, results: out, at: now });
+  // aggiorna le metriche analytics (throttled internamente)
+  let metrics = { posts: 0, profiles: 0 };
+  try {
+    metrics = await refreshMetrics();
+  } catch {
+    /* non bloccare il cron per gli analytics */
+  }
+
+  return NextResponse.json({ processed: out.length, results: out, metrics, at: now });
 }
 
 export async function GET(req: Request) {

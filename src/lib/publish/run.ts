@@ -10,6 +10,7 @@ export interface AccountPublishResult {
   handle?: string;
   ok: boolean;
   error?: string;
+  providerPostId?: string; // request_id Upload-Post → per le metriche
 }
 
 // Pubblica un post già programmato: legge le immagini dal KV e pubblica su ogni account.
@@ -47,7 +48,7 @@ export async function runScheduledPost(post: PostRecord): Promise<{ status: "pub
       images: imgs,
       caption: post.caption ?? "",
     });
-    results.push({ accountId: accId, platform: a.platform, handle: a.handle, ok: res.ok, error: res.error });
+    results.push({ accountId: accId, platform: a.platform, handle: a.handle, ok: res.ok, error: res.error, providerPostId: res.providerPostId });
   }
 
   const anyOk = results.some((r) => r.ok);

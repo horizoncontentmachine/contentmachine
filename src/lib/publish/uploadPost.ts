@@ -1,5 +1,5 @@
 import type { Platform } from "../types";
-import type { ProviderProfile, Publisher, PublishResult } from "./types";
+import type { ProfileStats, PostStats, ProviderProfile, Publisher, PublishResult } from "./types";
 
 // Adapter Upload-Post (https://docs.upload-post.com).
 // Auth: header "Authorization: Apikey <key>". Base: https://api.upload-post.com/api
@@ -100,5 +100,50 @@ export function createUploadPostPublisher(apiKey: string): Publisher {
       const id = (raw as { request_id?: string; id?: string }).request_id || (raw as { id?: string }).id;
       return { ok: true, providerPostId: id, raw };
     },
+
+    async getProfileAnalytics(profile, platforms): Promise<ProfileStats[]> {
+      const list = platforms.map((p) => TO_PROVIDER[p]).join(",");
+      const r = await fetch(`${BASE}/analytics/${encodeURIComponent(profile)}?platforms=${list}`, { headers });
+      if (!r.ok) return [];
+      const j = (await r.json().catch(() => ({}))) as Record<string, Record<string, number>>;
+      const out: ProfileStats[] = [];
+      for (const p of platforms) {
+        const m = j[TO_PROVIDER[p]];
+        if (m && typeof m === "object") {
+          out.push({
+            platform: p,
+            followers: num(m.followers),
+            reach: num(m.reach),
+            views: num(m.views),
+            impressions: num(m.impressions),
+          });
+        }
+      }
+      return out;
+    },
+
+    async getPostAnalytics(requestId, platform): Promise<PostStats | null> {
+      const r = await fetch(`${BASE}/uploadposts/post-analytics/${encodeURIComponent(requestId)}?platform=${TO_PROVIDER[platform]}`, { headers });
+      if (!r.ok) return null;
+      const j = (await r.json().catch(() => ({}))) as {
+        platforms?: Record<string, { post_metrics?: Record<string, number>; post_url?: string }>;
+      };
+      const pdata = j.platforms?.[TO_PROVIDER[platform]];
+      const m = pdata?.post_metrics;
+      if (!m) return null;
+      return {
+        views: num(m.views ?? m.impressions ?? m.plays),
+        likes: num(m.likes),
+        comments: num(m.comments),
+        shares: num(m.shares),
+        saves: num(m.saves ?? m.saved),
+        reach: num(m.reach),
+        postUrl: pdata?.post_url,
+      };
+    },
   };
+}
+
+function num(v: unknown): number {
+  return typeof v === "number" && isFinite(v) ? v : 0;
 }

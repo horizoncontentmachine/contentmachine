@@ -306,6 +306,96 @@ export function uidLong(): string {
   return crypto.randomUUID();
 }
 
+// ---- Analytics: metriche post + storico follower ----
+
+export interface PostMetricRow {
+  postId: string;
+  accountId: string;
+  platform: Platform;
+  requestId: string | null;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  saves: number;
+  reach: number;
+  postUrl: string | null;
+  fetchedAt: string | null;
+}
+
+export async function listPublishedPosts(projectId: string, sinceISO?: string): Promise<PostRecord[]> {
+  const sql = sinceISO
+    ? "SELECT * FROM posts WHERE projectId=? AND status='published' AND createdAt>=? ORDER BY createdAt DESC"
+    : "SELECT * FROM posts WHERE projectId=? AND status='published' ORDER BY createdAt DESC LIMIT 500";
+  const stmt = (await db()).prepare(sql);
+  const { results } = await (sinceISO ? stmt.bind(projectId, sinceISO) : stmt.bind(projectId)).all<PostRow>();
+  return (results ?? []).map(rowToPost);
+}
+
+export async function allPublishedSince(sinceISO: string): Promise<PostRecord[]> {
+  const { results } = await (await db())
+    .prepare("SELECT * FROM posts WHERE status='published' AND createdAt>=? ORDER BY createdAt DESC LIMIT 500")
+    .bind(sinceISO)
+    .all<PostRow>();
+  return (results ?? []).map(rowToPost);
+}
+
+export async function listPostMetrics(projectId: string): Promise<PostMetricRow[]> {
+  const { results } = await (await db())
+    .prepare("SELECT pm.* FROM post_metrics pm JOIN posts p ON p.id=pm.postId WHERE p.projectId=?")
+    .bind(projectId)
+    .all<PostMetricRow>();
+  return results ?? [];
+}
+
+export async function allPostMetrics(): Promise<PostMetricRow[]> {
+  const { results } = await (await db()).prepare("SELECT * FROM post_metrics").all<PostMetricRow>();
+  return results ?? [];
+}
+
+export async function upsertPostMetric(m: PostMetricRow): Promise<void> {
+  await (await db())
+    .prepare(
+      "INSERT INTO post_metrics (postId,accountId,platform,requestId,views,likes,comments,shares,saves,reach,postUrl,fetchedAt) " +
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(postId,accountId) DO UPDATE SET " +
+        "views=excluded.views, likes=excluded.likes, comments=excluded.comments, shares=excluded.shares, saves=excluded.saves, reach=excluded.reach, postUrl=excluded.postUrl, fetchedAt=excluded.fetchedAt"
+    )
+    .bind(m.postId, m.accountId, m.platform, m.requestId, m.views, m.likes, m.comments, m.shares, m.saves, m.reach, m.postUrl, m.fetchedAt)
+    .run();
+}
+
+export async function recordFollowers(accountId: string, projectId: string, platform: Platform, date: string, followers: number, reach: number): Promise<void> {
+  await (await db())
+    .prepare(
+      "INSERT INTO follower_history (accountId,projectId,platform,date,followers,reach) VALUES (?,?,?,?,?,?) " +
+        "ON CONFLICT(accountId,date) DO UPDATE SET followers=excluded.followers, reach=excluded.reach"
+    )
+    .bind(accountId, projectId, platform, date, followers, reach)
+    .run();
+}
+
+export interface FollowerRow {
+  accountId: string;
+  projectId: string;
+  platform: Platform;
+  date: string;
+  followers: number;
+  reach: number;
+}
+
+export async function getFollowerHistory(projectId: string): Promise<FollowerRow[]> {
+  const { results } = await (await db())
+    .prepare("SELECT * FROM follower_history WHERE projectId=? ORDER BY date")
+    .bind(projectId)
+    .all<FollowerRow>();
+  return results ?? [];
+}
+
+export async function allFollowerHistory(): Promise<FollowerRow[]> {
+  const { results } = await (await db()).prepare("SELECT * FROM follower_history ORDER BY date").all<FollowerRow>();
+  return results ?? [];
+}
+
 // ---- Slot di pubblicazione (per progetto) ----
 
 const PROJECT_SLOT = "_project";

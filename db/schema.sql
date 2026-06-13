@@ -53,3 +53,29 @@ CREATE TABLE IF NOT EXISTS posting_slots (
   timezone TEXT,
   PRIMARY KEY (projectId, accountId)
 );
+
+-- metriche analytics (Fase 3)
+CREATE TABLE IF NOT EXISTS post_metrics (
+  postId TEXT NOT NULL,
+  accountId TEXT NOT NULL,
+  platform TEXT NOT NULL,
+  requestId TEXT,
+  views INTEGER DEFAULT 0,
+  likes INTEGER DEFAULT 0,
+  comments INTEGER DEFAULT 0,
+  shares INTEGER DEFAULT 0,
+  saves INTEGER DEFAULT 0,
+  reach INTEGER DEFAULT 0,
+  postUrl TEXT,
+  fetchedAt TEXT,
+  PRIMARY KEY (postId, accountId)
+);
+CREATE TABLE IF NOT EXISTS follower_history (
+  accountId TEXT NOT NULL,
+  projectId TEXT NOT NULL,
+  platform TEXT NOT NULL,
+  date TEXT NOT NULL,
+  followers INTEGER DEFAULT 0,
+  reach INTEGER DEFAULT 0,
+  PRIMARY KEY (accountId, date)
+);

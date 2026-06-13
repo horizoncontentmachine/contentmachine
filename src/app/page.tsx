@@ -6,6 +6,7 @@ import { ChevronDown, Copy, FolderOpen, Plus, Settings, Trash2 } from "lucide-re
 import { formatCents } from "@/lib/costs";
 import { BalancePill } from "@/components/BalancePill";
 import { VaultBrowser } from "@/components/VaultBrowser";
+import { GlobalOverview } from "@/components/distribution/GlobalOverview";
 import type { Project } from "@/lib/types";
 
 export default function Home() {
@@ -110,6 +111,10 @@ export default function Home() {
               >
                 <Plus size={14} /> Crea
               </button>
+            </div>
+
+            <div className="mt-8">
+              <GlobalOverview />
             </div>
 
             {projects && projects.length === 0 && (

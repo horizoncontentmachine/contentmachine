@@ -21,6 +21,24 @@ export interface ProviderProfile {
   connected: { platform: Platform; handle?: string }[];
 }
 
+export interface ProfileStats {
+  platform: Platform;
+  followers: number;
+  reach: number;
+  views: number;
+  impressions: number;
+}
+
+export interface PostStats {
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  saves: number;
+  reach: number;
+  postUrl?: string;
+}
+
 export interface Publisher {
   name: string;
   // assicura che il profilo esista lato provider
@@ -31,4 +49,7 @@ export interface Publisher {
   getProfiles(): Promise<ProviderProfile[]>;
   // pubblica un carosello di foto su un profilo/piattaforma
   publishPhotos(args: { profile: string; platforms: Platform[]; images: PublishImage[]; caption: string }): Promise<PublishResult>;
+  // analytics
+  getProfileAnalytics(profile: string, platforms: Platform[]): Promise<ProfileStats[]>;
+  getPostAnalytics(requestId: string, platform: Platform): Promise<PostStats | null>;
 }

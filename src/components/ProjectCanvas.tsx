@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { LayoutGrid, CalendarClock, AtSign, History } from "lucide-react";
+import { LayoutGrid, CalendarClock, AtSign, History, BarChart3 } from "lucide-react";
 import { useFlowStore } from "@/store/useFlowStore";
 import { Flow } from "./canvas/Flow";
 import { Inspector } from "./Inspector";
@@ -11,6 +11,7 @@ import { OutputDock } from "./OutputDock";
 import { AccountsPanel } from "./distribution/AccountsPanel";
 import { HistoryPanel } from "./distribution/HistoryPanel";
 import { CalendarPanel } from "./distribution/CalendarPanel";
+import { InsightsPanel } from "./distribution/InsightsPanel";
 import { PLATFORM_FORMAT } from "@/lib/formats";
 import type { Node as RFNode } from "@xyflow/react";
 import type { Project } from "@/lib/types";
@@ -48,10 +49,11 @@ function WorkflowBar() {
   );
 }
 
-type View = "crea" | "calendario" | "account" | "storico";
+type View = "crea" | "calendario" | "account" | "storico" | "insights";
 const VIEWS: { id: View; label: string; icon: React.ReactNode }[] = [
   { id: "crea", label: "Crea", icon: <LayoutGrid size={13} /> },
   { id: "calendario", label: "Calendario", icon: <CalendarClock size={13} /> },
+  { id: "insights", label: "Insights", icon: <BarChart3 size={13} /> },
   { id: "account", label: "Account", icon: <AtSign size={13} /> },
   { id: "storico", label: "Storico", icon: <History size={13} /> },
 ];
@@ -65,7 +67,7 @@ export function ProjectCanvas({ projectId }: { projectId: string }) {
   // vista iniziale da URL (?tab=account dopo il collegamento)
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get("tab");
-    if (t === "account" || t === "calendario" || t === "storico") setView(t);
+    if (t === "account" || t === "calendario" || t === "storico" || t === "insights") setView(t);
   }, []);
 
   useEffect(() => {
@@ -195,6 +197,7 @@ export function ProjectCanvas({ projectId }: { projectId: string }) {
           {view === "account" && <AccountsPanel projectId={projectId} />}
           {view === "storico" && <HistoryPanel projectId={projectId} />}
           {view === "calendario" && <CalendarPanel projectId={projectId} />}
+          {view === "insights" && <InsightsPanel projectId={projectId} />}
         </div>
       )}
     </div>

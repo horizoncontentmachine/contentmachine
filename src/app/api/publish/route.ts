@@ -36,7 +36,7 @@ export async function POST(req: Request) {
       }))
     );
 
-    const results: { accountId: string; platform: Platform; handle?: string; ok: boolean; error?: string }[] = [];
+    const results: { accountId: string; platform: Platform; handle?: string; ok: boolean; error?: string; providerPostId?: string }[] = [];
     const platforms = new Set<Platform>();
     for (const accId of accountIds) {
       const a = await getAccount(accId);
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
       const max = PLATFORM_FORMAT[a.platform].maxImages;
       const imgs = images.slice(0, max); // rispetta il limite della piattaforma (es. X = 4)
       const res = await publisher.publishPhotos({ profile: a.providerProfile, platforms: [a.platform], images: imgs, caption });
-      results.push({ accountId: accId, platform: a.platform, handle: a.handle, ok: res.ok, error: res.error });
+      results.push({ accountId: accId, platform: a.platform, handle: a.handle, ok: res.ok, error: res.error, providerPostId: res.providerPostId });
     }
 
     const anyOk = results.some((r) => r.ok);
