@@ -28,7 +28,8 @@ export function PublishDialog({
 }) {
   const [accounts, setAccounts] = useState<SocialAccount[] | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [caption, setCaption] = useState("");
+  // caption pre-compilata con l'hook della variante (modificabile)
+  const [caption, setCaption] = useState(() => slides.find((s) => s.role === "HOOK")?.overlay?.text?.trim() ?? "");
   const [state, setState] = useState<"idle" | "publishing" | "done">("idle");
   const [error, setError] = useState<string | null>(null);
 

@@ -114,7 +114,11 @@ export async function runVariants(nodeId: string) {
       maxVariants: d.maxVariants,
       seed: d.seed,
     });
-    const groups = variants.map((v, i) => ({ label: `C${cN}.${i}`, slides: v.slides }));
+    const groups = variants.map((v, i) => ({
+      label: `C${cN}.${i}`,
+      hook: v.slides.find((s) => s.role === "HOOK")?.overlay?.text?.trim() ?? "",
+      slides: v.slides,
+    }));
     const count = await downloadGroups(`${meta.name}_C${cN}_varianti`, groups, activeFmtH());
     updateNodeData(nodeId, { lastExport: { count, at: new Date().toISOString() } satisfies ExportInfo });
   } catch (e) {

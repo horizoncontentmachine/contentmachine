@@ -1,10 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import type { Node } from "@xyflow/react";
-import { Download, Loader2, Play } from "lucide-react";
+import { ArrowDownToLine, Download, Loader2, Play } from "lucide-react";
 import { useFlowStore } from "@/store/useFlowStore";
 import { collectSlides, findInputNode, nodeOutput, resolvePrompt } from "@/lib/graphResolve";
 import { generateImage, exportCarousel, runVariants } from "@/lib/actions";
+import { getJson } from "@/lib/clientApi";
+import { expandVariants } from "@/lib/variants";
 import { estimateImageCents, formatCents, QUALITY_LABEL, type ImageQuality } from "@/lib/costs";
 import {
   activeResult,
@@ -260,8 +263,45 @@ function CarouselInspector({ node }: { node: Node }) {
 function VariantsInspector({ node }: { node: Node }) {
   const d = node.data as VariantsData;
   const busy = useFlowStore((s) => !!s.busy[node.id]);
+  const nodes = useFlowStore((s) => s.nodes);
+  const edges = useFlowStore((s) => s.edges);
+  const niche = useFlowStore((s) => s.meta?.niche);
   const { updateNodeData } = useFlowStore.getState();
+  const [loadingVault, setLoadingVault] = useState(false);
+
   const hookCount = d.hookTexts.split("\n").map((s) => s.trim()).filter(Boolean).length;
+
+  // anteprima conteggio reale: espande le varianti sul carosello collegato (zero AI)
+  const sourceEdge = edges.find((e) => e.target === node.id && (e.targetHandle ?? "in") === "in");
+  const source = sourceEdge ? nodes.find((n) => n.id === sourceEdge.source) : undefined;
+  let variantCount = 0;
+  let baseReady = false;
+  if (source) {
+    const { slides } = collectSlides(nodes, edges, source);
+    baseReady = !!slides.find((s) => s.role === "HOOK");
+    if (baseReady) {
+      variantCount = expandVariants(slides, {
+        hookTexts: d.hookTexts.split("\n").map((s) => s.trim()).filter(Boolean),
+        shuffleBody: d.shuffleBody,
+        lockedBodyIndexes: [],
+        maxVariants: Math.min(Number(d.maxVariants) || 10, 100),
+        seed: Number(d.seed) || 42,
+      }).length;
+    }
+  }
+
+  const loadFromVault = async () => {
+    setLoadingVault(true);
+    try {
+      const all = await getJson<{ type: string; text: string }[]>(`/api/vault?niche=${encodeURIComponent(niche ?? "")}`);
+      const hooks = all.filter((e) => e.type === "hook").map((e) => e.text.trim());
+      const existing = new Set(d.hookTexts.split("\n").map((s) => s.trim()).filter(Boolean));
+      const merged = [...existing, ...hooks.filter((h) => !existing.has(h))];
+      updateNodeData(node.id, { hookTexts: merged.join("\n") });
+    } finally {
+      setLoadingVault(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -274,6 +314,25 @@ function VariantsInspector({ node }: { node: Node }) {
           placeholder={"POV: hai scoperto questo trucco\n3 errori che fai ogni giorno\nNessuno te lo dice ma…"}
         />
       </Field>
+
+      <button
+        onClick={loadFromVault}
+        disabled={loadingVault}
+        className="inline-flex items-center gap-1.5 rounded-full border border-[#2e2e34] bg-[#202024] px-3 py-1.5 text-[11px] font-medium text-zinc-300 transition hover:border-[#454550] hover:text-white disabled:opacity-40"
+      >
+        {loadingVault ? <Loader2 size={12} className="animate-spin" /> : <ArrowDownToLine size={12} />} Carica hook dal Vault
+      </button>
+
+      <div className="rounded-lg border border-[#26262b] bg-[#1d1d21] px-3 py-2 text-[11px] text-zinc-400">
+        {baseReady ? (
+          <>
+            <span className="font-semibold text-zinc-100">{variantCount}</span> varianti pronte ·{" "}
+            <span className="text-zinc-500">costo AI $0</span>
+          </>
+        ) : (
+          <span className="text-amber-400/90">Collega un Carosello completo per vedere le varianti.</span>
+        )}
+      </div>
       <label className="flex items-center gap-2.5 text-[11.5px] text-zinc-300">
         <input type="checkbox" checked={d.shuffleBody} onChange={(e) => updateNodeData(node.id, { shuffleBody: e.target.checked })} />
         Mescola l&apos;ordine delle slide centrali

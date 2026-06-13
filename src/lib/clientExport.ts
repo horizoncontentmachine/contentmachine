@@ -113,6 +113,19 @@ function safe(s: string): string {
   return (s || "export").replace(/[^a-zA-Z0-9_.-]+/g, "_").slice(0, 60);
 }
 
+// nome cartella leggibile dall'hook (es. "POV la tua colazione" → "pov-la-tua-colazione")
+function hookSlug(hook?: string): string {
+  if (!hook) return "";
+  const s = hook
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+  return s ? ` - ${s}` : "";
+}
+
 // Un singolo carosello → zip di PNG numerati, nel formato dato.
 export async function downloadCarousel(name: string, slides: SlideInput[], fmtH: number = CANVAS_H): Promise<void> {
   const files: Record<string, Uint8Array> = {};
@@ -122,12 +135,17 @@ export async function downloadCarousel(name: string, slides: SlideInput[], fmtH:
   triggerDownload(zipSync(files), `${safe(name)}.zip`, "application/zip");
 }
 
-// Più varianti → zip con una cartella per variante (C1.0/, C1.1/, …).
-export async function downloadGroups(name: string, groups: { label: string; slides: SlideInput[] }[], fmtH: number = CANVAS_H): Promise<number> {
+// Più varianti → zip con una cartella per variante, nominata con l'hook (es. "C1.0 - pov-la-tua-colazione/").
+export async function downloadGroups(
+  name: string,
+  groups: { label: string; hook?: string; slides: SlideInput[] }[],
+  fmtH: number = CANVAS_H
+): Promise<number> {
   const files: Record<string, Uint8Array> = {};
   for (const g of groups) {
+    const folder = safe(`${g.label}${hookSlug(g.hook)}`);
     for (let i = 0; i < g.slides.length; i++) {
-      files[`${safe(g.label)}/${String(i + 1).padStart(2, "0")}_${g.slides[i].role}.png`] = await renderSlidePng(g.slides[i], fmtH);
+      files[`${folder}/${String(i + 1).padStart(2, "0")}_${g.slides[i].role}.png`] = await renderSlidePng(g.slides[i], fmtH);
     }
   }
   triggerDownload(zipSync(files), `${safe(name)}.zip`, "application/zip");

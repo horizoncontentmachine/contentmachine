@@ -111,7 +111,16 @@ function defaultData(kind: NodeKind, n: number): Record<string, unknown> {
     case "carousel":
       return { bodyCount: 3, lastExport: null, n };
     case "variants":
-      return { hookTexts: "", shuffleBody: false, locked: "", maxVariants: 10, seed: 42, lastExport: null, n };
+      return {
+        hookTexts:
+          "POV: la tua colazione da 10 minuti\n3 colazioni che ti svoltano la mattina\nNessuno te lo dice ma la colazione conta\nLa colazione che fanno i top 1%\nSmetti di saltare la colazione: ecco perché",
+        shuffleBody: false,
+        locked: "",
+        maxVariants: 10,
+        seed: 42,
+        lastExport: null,
+        n,
+      };
   }
 }
 

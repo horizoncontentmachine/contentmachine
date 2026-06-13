@@ -10,7 +10,12 @@ import type { CarouselData, VariantsData } from "./nodeData";
 
 export interface OutputGroup {
   label: string; // es. "C1.0"
+  hook?: string; // testo hook di questa variante (per nome cartella / caption)
   slides: SlideInput[];
+}
+
+export function hookOf(slides: SlideInput[]): string {
+  return slides.find((s) => s.role === "HOOK")?.overlay?.text?.trim() ?? "";
 }
 
 export interface OutputSequence {
@@ -51,9 +56,9 @@ export function buildOutputs(nodes: Node[], edges: Edge[]): OutputSequence[] {
     let options: VariantOptions | undefined;
     if (vNode) {
       options = variantOptions(vNode.data as VariantsData);
-      groups = expandVariants(slides, options).map((v, i) => ({ label: `C${cN}.${i}`, slides: v.slides }));
+      groups = expandVariants(slides, options).map((v, i) => ({ label: `C${cN}.${i}`, hook: hookOf(v.slides), slides: v.slides }));
     } else {
-      groups = [{ label: `C${cN}`, slides }];
+      groups = [{ label: `C${cN}`, hook: hookOf(slides), slides }];
     }
 
     out.push({ carouselId: node.id, carouselN: cN, variantsNodeId: vNode?.id, options, groups });
