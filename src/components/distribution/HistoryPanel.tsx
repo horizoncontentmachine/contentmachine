@@ -74,7 +74,11 @@ export function HistoryPanel({ projectId }: { projectId: string }) {
                 ))}
               </div>
               <div className="flex-1" />
-              <span className="text-[10.5px] text-zinc-600">{new Date(p.createdAt).toLocaleString("it-IT")}</span>
+              <span className="text-[10.5px] text-zinc-600">
+                {p.status === "queued" && p.scheduledAt
+                  ? `programmato · ${new Date(p.scheduledAt).toLocaleString("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`
+                  : new Date(p.createdAt).toLocaleString("it-IT")}
+              </span>
             </div>
             {p.slides && p.slides.length > 0 && (
               <div className="flex gap-1.5 overflow-x-auto px-1 pb-1">

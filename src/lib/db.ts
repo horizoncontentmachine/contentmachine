@@ -201,28 +201,57 @@ export async function removeAccount(id: string): Promise<void> {
 
 // ---- Posts (storico / coda) ----
 
-export async function listPosts(projectId: string): Promise<PostRecord[]> {
-  const { results } = await (await db())
-    .prepare("SELECT * FROM posts WHERE projectId=? ORDER BY createdAt DESC LIMIT 200")
-    .bind(projectId)
-    .all<{ id: string; projectId: string; createdAt: string; scheduledAt: string | null; status: string; platforms: string; caption: string | null; slides: string | null; result: string | null }>();
-  return (results ?? []).map((r) => ({
+interface PostRow {
+  id: string;
+  projectId: string;
+  createdAt: string;
+  scheduledAt: string | null;
+  status: string;
+  platforms: string;
+  accountIds: string | null;
+  mediaKeys: string | null;
+  caption: string | null;
+  slides: string | null;
+  result: string | null;
+}
+
+function rowToPost(r: PostRow): PostRecord {
+  return {
     id: r.id,
     projectId: r.projectId,
     createdAt: r.createdAt,
     scheduledAt: r.scheduledAt,
     status: r.status as PostRecord["status"],
     platforms: JSON.parse(r.platforms) as Platform[],
+    accountIds: r.accountIds ? JSON.parse(r.accountIds) : undefined,
+    mediaKeys: r.mediaKeys ? JSON.parse(r.mediaKeys) : undefined,
     caption: r.caption ?? undefined,
     slides: r.slides ? JSON.parse(r.slides) : undefined,
     result: r.result ? JSON.parse(r.result) : undefined,
-  }));
+  };
+}
+
+export async function listPosts(projectId: string): Promise<PostRecord[]> {
+  const { results } = await (await db())
+    .prepare("SELECT * FROM posts WHERE projectId=? ORDER BY COALESCE(scheduledAt, createdAt) DESC LIMIT 300")
+    .bind(projectId)
+    .all<PostRow>();
+  return (results ?? []).map(rowToPost);
+}
+
+// post programmati ormai dovuti (per il cron), su tutti i progetti
+export async function getDuePosts(nowISO: string, limit = 50): Promise<PostRecord[]> {
+  const { results } = await (await db())
+    .prepare("SELECT * FROM posts WHERE status='queued' AND scheduledAt IS NOT NULL AND scheduledAt <= ? ORDER BY scheduledAt LIMIT ?")
+    .bind(nowISO, limit)
+    .all<PostRow>();
+  return (results ?? []).map(rowToPost);
 }
 
 export async function createPost(p: PostRecord): Promise<void> {
   await (await db())
     .prepare(
-      "INSERT INTO posts (id,projectId,createdAt,scheduledAt,status,platforms,caption,slides,result) VALUES (?,?,?,?,?,?,?,?,?)"
+      "INSERT INTO posts (id,projectId,createdAt,scheduledAt,status,platforms,accountIds,mediaKeys,caption,slides,result) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
     )
     .bind(
       p.id,
@@ -231,6 +260,8 @@ export async function createPost(p: PostRecord): Promise<void> {
       p.scheduledAt ?? null,
       p.status,
       JSON.stringify(p.platforms),
+      p.accountIds ? JSON.stringify(p.accountIds) : null,
+      p.mediaKeys ? JSON.stringify(p.mediaKeys) : null,
       p.caption ?? null,
       p.slides ? JSON.stringify(p.slides) : null,
       p.result ? JSON.stringify(p.result) : null

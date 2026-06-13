@@ -27,7 +27,7 @@ CREATE TABLE social_accounts (
 );
 CREATE INDEX IF NOT EXISTS accounts_by_project ON social_accounts (projectId);
 
--- post pubblicati / programmati (Storico + futuro scheduling)
+-- post pubblicati / programmati (Storico + scheduling)
 CREATE TABLE IF NOT EXISTS posts (
   id TEXT PRIMARY KEY,
   projectId TEXT NOT NULL,
@@ -35,8 +35,21 @@ CREATE TABLE IF NOT EXISTS posts (
   scheduledAt TEXT,                  -- null = pubblicato subito
   status TEXT NOT NULL,             -- queued | publishing | published | failed
   platforms TEXT NOT NULL,          -- json array
+  accountIds TEXT,                  -- json array di account target
+  mediaKeys TEXT,                   -- json array di chiavi KV delle immagini già flattenizzate
   caption TEXT,
   slides TEXT,                      -- json SlideInput[] (per anteprime nello Storico)
   result TEXT                       -- json: risposta provider o errore
 );
 CREATE INDEX IF NOT EXISTS posts_by_project ON posts (projectId, createdAt);
+CREATE INDEX IF NOT EXISTS posts_due ON posts (status, scheduledAt);
+
+-- slot ricorrenti per la programmazione automatica (Fase 2b)
+CREATE TABLE IF NOT EXISTS posting_slots (
+  projectId TEXT NOT NULL,
+  accountId TEXT NOT NULL,
+  days TEXT NOT NULL,
+  times TEXT NOT NULL,
+  timezone TEXT,
+  PRIMARY KEY (projectId, accountId)
+);

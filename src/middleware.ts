@@ -26,6 +26,6 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // tutto tranne gli asset statici e il callback OAuth di Drive (Google non manda credenziali)
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/drive/callback).*)"],
+  // tutto tranne asset statici, callback OAuth Drive e l'endpoint cron (protetto da CRON_SECRET)
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/drive/callback|api/cron/).*)"],
 };

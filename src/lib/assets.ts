@@ -45,3 +45,21 @@ export async function readAsset(key: string): Promise<LoadedAsset | null> {
   const ext = (res.metadata as { ext?: string } | null)?.ext || "png";
   return { bytes: res.value, ext };
 }
+
+// Media effimera per i post programmati (immagini già flattenizzate, lette dal cron).
+export async function putBlob(key: string, bytes: Uint8Array): Promise<void> {
+  await (await blobs()).put(key, bytes, { metadata: { ext: "png" } });
+}
+
+export async function getBlob(key: string): Promise<Uint8Array | null> {
+  const v = await (await blobs()).get(key, { type: "arrayBuffer" });
+  return v ? new Uint8Array(v) : null;
+}
+
+export async function delBlob(key: string): Promise<void> {
+  try {
+    await (await blobs()).delete(key);
+  } catch {
+    /* ignora */
+  }
+}

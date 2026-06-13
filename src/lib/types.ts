@@ -161,9 +161,19 @@ export interface PostRecord {
   scheduledAt?: string | null; // null = pubblicato subito
   status: PostStatus;
   platforms: Platform[];
+  accountIds?: string[]; // account target
+  mediaKeys?: string[]; // chiavi KV immagini già flattenizzate (per il cron)
   caption?: string;
   slides?: SlideInput[]; // per anteprime nello Storico
-  result?: unknown; // risposta provider o errore
+  result?: unknown;
+}
+
+export interface PostingSlot {
+  projectId: string;
+  accountId: string;
+  days: number[]; // 0=domenica .. 6=sabato
+  times: string[]; // "09:00"
+  timezone?: string;
 }
 
 export interface UsageSummary {

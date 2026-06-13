@@ -1,0 +1,11 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "contentmachine-cron",
+  "main": "index.ts",
+  "compatibility_date": "2025-03-01",
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
+  "services": [{ "binding": "APP", "service": "contentmachine" }],
+  "observability": { "enabled": true }
+}
