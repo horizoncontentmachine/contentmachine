@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Lightbulb } from "lucide-react";
 import { getJson } from "@/lib/clientApi";
+import { Sk } from "@/components/Skeleton";
 
 interface Mini {
   hasData: boolean;
@@ -24,7 +25,24 @@ export function GlobalOverview() {
     getJson<Mini>("/api/insights").then(setD).catch(() => {});
   }, []);
 
-  if (!d || !d.hasData) return null;
+  // mockup: scatole con skeleton finché non ci sono dati
+  if (!d || !d.hasData)
+    return (
+      <div className="mb-6 rounded-2xl border border-[#26262b] bg-[#19191c] p-4">
+        <div className="flex flex-wrap items-center gap-6">
+          {["Follower", "Reach totale", "Post pubblicati"].map((t) => (
+            <div key={t}>
+              <div className="text-[10px] uppercase tracking-wide text-zinc-600">{t}</div>
+              <Sk w={56} h={18} className="mt-1" />
+            </div>
+          ))}
+          <div className="flex min-w-0 flex-1 items-center gap-2 border-l border-[#26262b] pl-6">
+            <Lightbulb size={13} className="shrink-0 text-zinc-600" />
+            <Sk w="60%" h={11} />
+          </div>
+        </div>
+      </div>
+    );
 
   return (
     <div className="mb-6 rounded-2xl border border-[#26262b] bg-[#19191c] p-4">

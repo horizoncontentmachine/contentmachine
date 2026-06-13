@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BarChart3, Lightbulb, Loader2, TrendingUp, Trophy } from "lucide-react";
+import { BarChart3, Info, Lightbulb, TrendingUp, Trophy } from "lucide-react";
 import { getJson } from "@/lib/clientApi";
 import { OverlayPreview } from "@/components/OverlayPreview";
+import { Sk } from "@/components/Skeleton";
 import { PLATFORM_FORMAT } from "@/lib/formats";
 import { PLATFORM_LABEL, type Platform, type SlideInput } from "@/lib/types";
 
@@ -41,6 +42,91 @@ function Sparkline({ data }: { data: number[] }) {
   );
 }
 
+function SkeletonInsights({ empty }: { empty: boolean }) {
+  return (
+    <div className="mx-auto max-w-3xl space-y-4 px-6 py-8">
+      {empty && (
+        <div className="flex items-center gap-2 rounded-xl border border-[#26262b] bg-[#19191c] px-3.5 py-2.5 text-[11.5px] text-zinc-400">
+          <Info size={14} className="shrink-0 text-zinc-500" />
+          Ecco come apparirà la dashboard: i dati si popolano qui dopo aver collegato Upload-Post e pubblicato (le metriche arrivano qualche ora dopo).
+        </div>
+      )}
+      {/* totali */}
+      <div className="grid grid-cols-3 gap-3">
+        {["Follower", "Reach totale", "Post pubblicati"].map((t) => (
+          <div key={t} className="rounded-2xl border border-[#26262b] bg-[#19191c] p-4">
+            <div className="text-[10px] uppercase tracking-wide text-zinc-600">{t}</div>
+            <Sk w={64} h={22} className="mt-1.5" />
+          </div>
+        ))}
+      </div>
+      {/* consigli */}
+      <Card icon={<Lightbulb size={13} />} title="Consigli">
+        <div className="space-y-2">
+          <Sk w="90%" h={11} />
+          <Sk w="70%" h={11} />
+        </div>
+      </Card>
+      {/* cosa funziona */}
+      <Card icon={<BarChart3 size={13} />} title="Cosa funziona">
+        <div className="mb-4">
+          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-600">Per piattaforma</div>
+          <div className="space-y-1.5">
+            {["IG", "TT", "X"].map((b) => (
+              <div key={b} className="flex items-center gap-2">
+                <span className="grid h-5 w-7 shrink-0 place-items-center rounded bg-[#2e2e34] text-[8px] font-bold text-zinc-500">{b}</span>
+                <Sk h={8} className="flex-1" rounded="rounded-full" />
+                <Sk w={90} h={10} />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="mb-4">
+          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-600">Hook migliori</div>
+          <div className="space-y-1.5">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center justify-between gap-2">
+                <Sk w={`${70 - i * 8}%`} h={11} />
+                <Sk w={70} h={9} />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-600">N. slide</div>
+          <div className="flex flex-wrap gap-1.5">
+            {[0, 1, 2].map((i) => (
+              <Sk key={i} w={96} h={26} rounded="rounded-lg" />
+            ))}
+          </div>
+        </div>
+      </Card>
+      {/* crescita */}
+      <Card icon={<TrendingUp size={13} />} title="Crescita follower">
+        <Sk h={40} className="w-full" />
+      </Card>
+      {/* top post */}
+      <Card icon={<Trophy size={13} />} title="Top post">
+        <div className="space-y-2">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="flex items-center gap-3 rounded-xl border border-[#26262b] bg-[#1d1d21] p-2">
+              <Sk w={30} h={40} rounded="rounded" />
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <Sk w={`${60 - i * 6}%`} h={11} />
+                <Sk w={40} h={8} />
+              </div>
+              <div className="space-y-1.5 text-right">
+                <Sk w={70} h={10} className="ml-auto" />
+                <Sk w={90} h={8} className="ml-auto" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 function Card({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
     <section className="rounded-2xl border border-[#26262b] bg-[#19191c] p-4">
@@ -65,23 +151,8 @@ export function InsightsPanel({ projectId }: { projectId?: string }) {
       .finally(() => setLoading(false));
   }, [projectId]);
 
-  if (loading)
-    return (
-      <div className="grid place-items-center py-20 text-zinc-600">
-        <Loader2 size={20} className="animate-spin" />
-      </div>
-    );
-
-  if (!d || !d.hasData)
-    return (
-      <div className="mx-auto max-w-2xl px-6 py-8">
-        <div className="rounded-2xl border border-dashed border-[#2a2a30] p-10 text-center text-[12px] leading-relaxed text-zinc-600">
-          <BarChart3 size={26} className="mx-auto mb-3 text-zinc-600" />
-          Ancora nessun dato. Le metriche compaiono qui dopo che colleghi Upload-Post e i post pubblicati iniziano a
-          raccogliere visualizzazioni e salvataggi (qualche ora dopo la pubblicazione).
-        </div>
-      </div>
-    );
+  // Mockup strutturato: le "scatole" che conterranno i dati, prima che esistano.
+  if (loading || !d || !d.hasData) return <SkeletonInsights empty={!loading} />;
 
   const maxScore = Math.max(1, ...d.cosaFunziona.platforms.map((p) => p.score));
 

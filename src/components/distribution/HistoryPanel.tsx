@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Check, Clock, Loader2, RefreshCw, X } from "lucide-react";
 import { getJson } from "@/lib/clientApi";
 import { OverlayPreview } from "@/components/OverlayPreview";
+import { Sk } from "@/components/Skeleton";
 import type { Platform, PostRecord } from "@/lib/types";
 
 const PLAT_LABEL: Record<Platform, string> = { instagram: "IG", tiktok: "TT", x: "X" };
@@ -55,9 +56,28 @@ export function HistoryPanel({ projectId }: { projectId: string }) {
         </button>
       </div>
 
-      {posts && posts.length === 0 && (
-        <div className="rounded-2xl border border-dashed border-[#2a2a30] p-10 text-center text-[12px] leading-relaxed text-zinc-600">
-          Ancora nessuna pubblicazione. Genera un carosello, poi premi <span className="text-zinc-400">Pubblica</span> dall&apos;area Output.
+      {(!posts || posts.length === 0) && (
+        <div className="space-y-2.5">
+          {posts && posts.length === 0 && (
+            <div className="mb-1 text-[11.5px] text-zinc-500">
+              Qui appariranno i post pubblicati. Genera un carosello e premi <span className="text-zinc-300">Pubblica</span> dall&apos;Output.
+            </div>
+          )}
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="rounded-2xl border border-[#26262b] bg-[#19191c] p-3">
+              <div className="mb-2 flex items-center gap-2 px-1">
+                <Sk w={80} h={18} rounded="rounded-full" />
+                <Sk w={22} h={18} rounded="rounded-md" />
+                <div className="flex-1" />
+                <Sk w={90} h={10} />
+              </div>
+              <div className="flex gap-1.5 px-1">
+                {[0, 1, 2, 3].map((k) => (
+                  <Sk key={k} w={40} h={71} rounded="rounded-md" />
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
