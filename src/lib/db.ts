@@ -289,6 +289,10 @@ export async function reschedulePost(id: string, scheduledAt: string): Promise<v
   await (await db()).prepare("UPDATE posts SET scheduledAt=?, status='queued' WHERE id=?").bind(scheduledAt, id).run();
 }
 
+export async function updatePostCaption(id: string, caption: string): Promise<void> {
+  await (await db()).prepare("UPDATE posts SET caption=? WHERE id=?").bind(caption, id).run();
+}
+
 // rimette in coda i post bloccati in "publishing" da troppo tempo (crash a metà).
 // Usa scheduledAt: un post pubblicato bene è già "published"; resta "publishing" solo se è crashato.
 export async function requeueStuck(beforeISO: string): Promise<void> {

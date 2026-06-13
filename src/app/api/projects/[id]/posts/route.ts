@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listPosts, getPost, deletePost, reschedulePost } from "@/lib/db";
+import { listPosts, getPost, deletePost, reschedulePost, updatePostCaption } from "@/lib/db";
 import { delBlob } from "@/lib/assets";
 
 export const runtime = "nodejs";
@@ -27,6 +27,10 @@ export async function POST(req: Request, { params }: Ctx) {
   }
   if (body.action === "reschedule" && body.scheduledAt && !isNaN(Date.parse(body.scheduledAt))) {
     await reschedulePost(post.id, new Date(body.scheduledAt).toISOString());
+    return NextResponse.json({ ok: true });
+  }
+  if (body.action === "edit" && typeof body.caption === "string") {
+    await updatePostCaption(post.id, body.caption);
     return NextResponse.json({ ok: true });
   }
   return NextResponse.json({ error: "Azione non valida" }, { status: 400 });
