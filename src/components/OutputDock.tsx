@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, Download, Loader2, PanelBottomClose, Send, X } from "lucide-react";
+import { CalendarPlus, ChevronDown, ChevronLeft, ChevronRight, Download, Loader2, PanelBottomClose, Send, X } from "lucide-react";
 import { useFlowStore } from "@/store/useFlowStore";
 import { buildOutputs, type OutputGroup, type OutputSequence } from "@/lib/outputs";
 import { downloadCarousel, downloadGroups } from "@/lib/clientExport";
 import { PLATFORM_FORMAT } from "@/lib/formats";
 import { OverlayPreview } from "./OverlayPreview";
 import { PublishDialog } from "./distribution/PublishDialog";
+import { QueueDialog } from "./distribution/QueueDialog";
 import type { Platform, SlideInput } from "@/lib/types";
 
 interface PubTarget {
@@ -84,11 +85,13 @@ function SequenceBlock({
   fmtH,
   onOpen,
   onPublish,
+  onQueue,
 }: {
   seq: OutputSequence;
   fmtH: number;
   onOpen: (slides: SlideInput[], start: number) => void;
   onPublish: (t: PubTarget) => void;
+  onQueue: (seq: OutputSequence) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const downloadAll = async () => {
@@ -112,6 +115,13 @@ function SequenceBlock({
           {seq.groups.length} {seq.groups.length === 1 ? "versione" : "varianti"} · {seq.groups[0]?.slides.length} slide
         </span>
         <div className="flex-1" />
+        <button
+          onClick={() => onQueue(seq)}
+          className="inline-flex items-center gap-1.5 rounded-full border border-[#2e2e34] bg-[#202024] px-3 py-1 text-[10.5px] font-medium text-zinc-300 transition hover:border-[#454550] hover:text-white"
+          title="Programma tutte le varianti negli slot"
+        >
+          <CalendarPlus size={11} /> Aggiungi alla coda
+        </button>
         <button
           onClick={downloadAll}
           disabled={busy}
@@ -190,6 +200,7 @@ export function OutputDock() {
   const [open, setOpen] = useState(true);
   const [box, setBox] = useState<{ slides: SlideInput[]; start: number } | null>(null);
   const [pub, setPub] = useState<PubTarget | null>(null);
+  const [queue, setQueue] = useState<OutputSequence | null>(null);
 
   const platform: Platform = workflows.find((w) => w.id === activeWf)?.platform ?? "tiktok";
   const fmtH = PLATFORM_FORMAT[platform].h;
@@ -225,6 +236,7 @@ export function OutputDock() {
                   fmtH={fmtH}
                   onOpen={(slides, start) => setBox({ slides, start })}
                   onPublish={setPub}
+                  onQueue={setQueue}
                 />
               ))}
             </div>
@@ -241,6 +253,9 @@ export function OutputDock() {
           slides={pub.slides}
           onClose={() => setPub(null)}
         />
+      )}
+      {queue && (
+        <QueueDialog projectId={meta.id} platform={platform} fmtH={fmtH} groups={queue.groups} onClose={() => setQueue(null)} />
       )}
     </>
   );

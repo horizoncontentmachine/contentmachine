@@ -194,7 +194,7 @@ export function ProjectCanvas({ projectId }: { projectId: string }) {
         <div className="min-h-0 flex-1 overflow-y-auto">
           {view === "account" && <AccountsPanel projectId={projectId} />}
           {view === "storico" && <HistoryPanel projectId={projectId} />}
-          {view === "calendario" && <CalendarPanel />}
+          {view === "calendario" && <CalendarPanel projectId={projectId} />}
         </div>
       )}
     </div>

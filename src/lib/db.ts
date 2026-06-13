@@ -276,6 +276,51 @@ export async function updatePostStatus(id: string, status: PostRecord["status"],
     .run();
 }
 
+export async function getPost(id: string): Promise<PostRecord | null> {
+  const r = await (await db()).prepare("SELECT * FROM posts WHERE id=?").bind(id).first<PostRow>();
+  return r ? rowToPost(r) : null;
+}
+
+export async function deletePost(id: string): Promise<void> {
+  await (await db()).prepare("DELETE FROM posts WHERE id=?").bind(id).run();
+}
+
+export async function reschedulePost(id: string, scheduledAt: string): Promise<void> {
+  await (await db()).prepare("UPDATE posts SET scheduledAt=?, status='queued' WHERE id=?").bind(scheduledAt, id).run();
+}
+
+// rimette in coda i post bloccati in "publishing" da troppo tempo (crash a metà).
+// Usa scheduledAt: un post pubblicato bene è già "published"; resta "publishing" solo se è crashato.
+export async function requeueStuck(beforeISO: string): Promise<void> {
+  await (await db())
+    .prepare("UPDATE posts SET status='queued' WHERE status='publishing' AND scheduledAt IS NOT NULL AND scheduledAt < ?")
+    .bind(beforeISO)
+    .run();
+}
+
 export function uidLong(): string {
   return crypto.randomUUID();
+}
+
+// ---- Slot di pubblicazione (per progetto) ----
+
+const PROJECT_SLOT = "_project";
+
+export async function getSlots(projectId: string): Promise<{ days: number[]; times: string[]; timezone?: string } | null> {
+  const r = await (await db())
+    .prepare("SELECT days, times, timezone FROM posting_slots WHERE projectId=? AND accountId=?")
+    .bind(projectId, PROJECT_SLOT)
+    .first<{ days: string; times: string; timezone: string | null }>();
+  if (!r) return null;
+  return { days: JSON.parse(r.days), times: JSON.parse(r.times), timezone: r.timezone ?? undefined };
+}
+
+export async function saveSlots(projectId: string, days: number[], times: string[], timezone?: string): Promise<void> {
+  await (await db())
+    .prepare(
+      "INSERT INTO posting_slots (projectId,accountId,days,times,timezone) VALUES (?,?,?,?,?) " +
+        "ON CONFLICT(projectId,accountId) DO UPDATE SET days=excluded.days, times=excluded.times, timezone=excluded.timezone"
+    )
+    .bind(projectId, PROJECT_SLOT, JSON.stringify(days), JSON.stringify(times), timezone ?? null)
+    .run();
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDuePosts, updatePostStatus } from "@/lib/db";
+import { getDuePosts, updatePostStatus, requeueStuck } from "@/lib/db";
 import { runScheduledPost } from "@/lib/publish/run";
 import { cfEnv } from "@/lib/cf";
 
@@ -16,6 +16,8 @@ async function handle(req: Request) {
   }
 
   const now = new Date().toISOString();
+  // recupera i post bloccati in "publishing" da oltre 15 minuti (crash a metà)
+  await requeueStuck(new Date(Date.now() - 15 * 60 * 1000).toISOString());
   const due = await getDuePosts(now);
   const out: { id: string; status: string }[] = [];
 
