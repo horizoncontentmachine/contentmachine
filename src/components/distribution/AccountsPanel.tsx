@@ -70,10 +70,10 @@ export function AccountsPanel({ projectId }: { projectId: string }) {
   const disabled = !view?.providerConfigured;
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-8">
+    <div className="mx-auto w-full max-w-[1000px] px-8 py-8">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h2 className="text-[16px] font-semibold tracking-tight text-zinc-100">Account social</h2>
+          <h2 className="text-[17px] font-semibold tracking-tight text-zinc-100">Account social</h2>
           <p className="mt-0.5 text-[12px] text-zinc-500">Collega quanti account vuoi, per ogni piattaforma.</p>
         </div>
         <button
@@ -112,12 +112,12 @@ export function AccountsPanel({ projectId }: { projectId: string }) {
       </div>
 
       {/* elenco account */}
-      <div className="space-y-2">
-        {accounts.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-[#2a2a30] p-8 text-center text-[12px] leading-relaxed text-zinc-600">
-            Nessun account collegato. Aggiungine uno con i bottoni qui sopra.
-          </div>
-        )}
+      {accounts.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-[#2a2a30] p-8 text-center text-[12px] leading-relaxed text-zinc-600">
+          Nessun account collegato. Aggiungine uno con i bottoni qui sopra.
+        </div>
+      )}
+      <div className="grid gap-2 md:grid-cols-2">
         {accounts.map((a) => (
           <div key={a.id} className="flex items-center gap-3 rounded-xl border border-[#26262b] bg-[#19191c] px-4 py-3">
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-[#2e2e34] bg-[#1f1f23] text-[12px] font-bold text-zinc-300">

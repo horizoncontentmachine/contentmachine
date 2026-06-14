@@ -73,9 +73,9 @@ export function CalendarPanel({ projectId }: { projectId: string }) {
   const weekLabel = `${weekStart.toLocaleDateString("it-IT", { day: "numeric", month: "short" })} – ${addDays(weekStart, 6).toLocaleDateString("it-IT", { day: "numeric", month: "short" })}`;
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-6">
+    <div className="mx-auto w-full max-w-[1400px] px-8 py-6">
       <div className="mb-4 flex items-center gap-3">
-        <h2 className="text-[16px] font-semibold tracking-tight text-zinc-100">Calendario</h2>
+        <h2 className="text-[17px] font-semibold tracking-tight text-zinc-100">Calendario</h2>
         <span className="text-[12px] text-zinc-500">{queued.length} in coda</span>
         <div className="flex-1" />
         <button
@@ -115,7 +115,7 @@ export function CalendarPanel({ projectId }: { projectId: string }) {
               key={i}
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => onDropDay(day)}
-              className={`min-h-[320px] rounded-xl border p-1.5 transition ${
+              className={`min-h-[460px] rounded-xl border p-2 transition ${
                 dragId ? "border-dashed border-[#3c3c44]" : "border-[#222227]"
               } ${isSlotDay ? "bg-[#161619]" : "bg-[#131315]"}`}
             >

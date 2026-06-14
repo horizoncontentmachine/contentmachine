@@ -41,10 +41,10 @@ export function HistoryPanel({ projectId }: { projectId: string }) {
   }, [load]);
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-8">
+    <div className="mx-auto w-full max-w-[1100px] px-8 py-8">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h2 className="text-[16px] font-semibold tracking-tight text-zinc-100">Storico pubblicazioni</h2>
+          <h2 className="text-[17px] font-semibold tracking-tight text-zinc-100">Storico pubblicazioni</h2>
           <p className="mt-0.5 text-[12px] text-zinc-500">Cosa è stato pubblicato, dove e quando.</p>
         </div>
         <button
@@ -56,14 +56,14 @@ export function HistoryPanel({ projectId }: { projectId: string }) {
         </button>
       </div>
 
+      {posts && posts.length === 0 && (
+        <div className="mb-3 text-[12px] text-zinc-500">
+          Qui appariranno i post pubblicati. Genera un carosello e premi <span className="text-zinc-300">Pubblica</span> dall&apos;Output.
+        </div>
+      )}
       {(!posts || posts.length === 0) && (
-        <div className="space-y-2.5">
-          {posts && posts.length === 0 && (
-            <div className="mb-1 text-[11.5px] text-zinc-500">
-              Qui appariranno i post pubblicati. Genera un carosello e premi <span className="text-zinc-300">Pubblica</span> dall&apos;Output.
-            </div>
-          )}
-          {[0, 1, 2].map((i) => (
+        <div className="grid gap-2.5 md:grid-cols-2">
+          {[0, 1, 2, 3].map((i) => (
             <div key={i} className="rounded-2xl border border-[#26262b] bg-[#19191c] p-3">
               <div className="mb-2 flex items-center gap-2 px-1">
                 <Sk w={80} h={18} rounded="rounded-full" />
@@ -81,7 +81,7 @@ export function HistoryPanel({ projectId }: { projectId: string }) {
         </div>
       )}
 
-      <div className="space-y-2.5">
+      <div className="grid gap-2.5 md:grid-cols-2">
         {posts?.map((p) => (
           <div key={p.id} className="rounded-2xl border border-[#26262b] bg-[#19191c] p-3">
             <div className="mb-2 flex items-center gap-2 px-1">
