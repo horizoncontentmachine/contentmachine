@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Copy, FolderOpen, Plus, Settings, Trash2 } from "lucide-react";
+import { ChevronDown, Copy, FolderOpen, Plus, Settings, Smartphone, Trash2 } from "lucide-react";
 import { formatCents } from "@/lib/costs";
 import { BalancePill } from "@/components/BalancePill";
 import { VaultBrowser } from "@/components/VaultBrowser";
@@ -71,6 +71,13 @@ export default function Home() {
         <span className="hidden text-[11px] text-zinc-600 sm:inline">Caroselli 9:16 da workflow riutilizzabili</span>
         <div className="flex-1" />
         <BalancePill />
+        <Link
+          href="/farm"
+          title="Device farm"
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#2a2a30] bg-[#1d1d21] px-3 text-[11.5px] font-medium text-zinc-300 transition hover:border-[#3c3c44] hover:text-white"
+        >
+          <Smartphone size={14} /> Device farm
+        </Link>
         <Link
           href="/settings"
           title="Impostazioni"

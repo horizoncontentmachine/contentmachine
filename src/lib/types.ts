@@ -122,6 +122,7 @@ export interface DriveConfig {
 export interface AppSettings {
   openaiKey?: string; // salvata dalla UI; l'env OPENAI_API_KEY ha precedenza
   uploadPostKey?: string; // chiave aggregatore di pubblicazione (Upload-Post)
+  duoplusKey?: string; // chiave DuoPlus (cloud phone / device farm)
   topups: TopUp[];
   drive: DriveConfig;
 }

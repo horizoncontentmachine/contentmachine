@@ -25,6 +25,14 @@ export async function resolveUploadPostKey(): Promise<string | null> {
   return saved || null;
 }
 
+// Chiave DuoPlus (cloud phone): env o salvata dalla UI.
+export async function resolveDuoplusKey(): Promise<string | null> {
+  const env = (await cfEnv()).DUOPLUS_API_KEY?.trim();
+  if (env) return env;
+  const saved = (await getSettings()).duoplusKey?.trim();
+  return saved || null;
+}
+
 export function maskKey(key?: string | null): string | null {
   if (!key) return null;
   if (key.length <= 10) return "•".repeat(key.length);

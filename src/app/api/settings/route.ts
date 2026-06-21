@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSettings, saveSettings } from "@/lib/db";
-import { maskKey, openAIKeySource, resolveOpenAIKey, resolveUploadPostKey } from "@/lib/settings";
+import { maskKey, openAIKeySource, resolveOpenAIKey, resolveUploadPostKey, resolveDuoplusKey } from "@/lib/settings";
 import type { TopUp } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -8,6 +8,7 @@ export const runtime = "nodejs";
 async function publicView() {
   const s = await getSettings();
   const upKey = await resolveUploadPostKey();
+  const dpKey = await resolveDuoplusKey();
   return {
     openai: {
       source: await openAIKeySource(),
@@ -17,6 +18,10 @@ async function publicView() {
     uploadPost: {
       configured: !!upKey,
       masked: maskKey(upKey),
+    },
+    duoplus: {
+      configured: !!dpKey,
+      masked: maskKey(dpKey),
     },
     topups: s.topups,
     topupCents: s.topups.reduce((a, t) => a + t.cents, 0),
@@ -44,6 +49,12 @@ export async function POST(req: Request) {
   }
   if (body.clearUploadPostKey) {
     await saveSettings({ uploadPostKey: undefined });
+  }
+  if (typeof body.duoplusKey === "string" && body.duoplusKey.trim()) {
+    await saveSettings({ duoplusKey: body.duoplusKey.trim() });
+  }
+  if (body.clearDuoplusKey) {
+    await saveSettings({ duoplusKey: undefined });
   }
   if (typeof body.addTopupCents === "number" && body.addTopupCents > 0) {
     const t: TopUp = { cents: Math.round(body.addTopupCents), at: new Date().toISOString(), note: body.topupNote };

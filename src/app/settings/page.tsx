@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, CloudUpload, ExternalLink, KeyRound, Loader2, Plus, Send, Trash2, Wallet } from "lucide-react";
+import { ArrowLeft, Check, CloudUpload, ExternalLink, KeyRound, Loader2, Plus, Send, Smartphone, Trash2, Wallet } from "lucide-react";
 import { getJson, postJson } from "@/lib/clientApi";
 import { formatCents, QUALITY_LABEL } from "@/lib/costs";
 import type { TopUp, UsageSummary } from "@/lib/types";
@@ -10,6 +10,7 @@ import type { TopUp, UsageSummary } from "@/lib/types";
 interface SettingsView {
   openai: { source: "env" | "saved" | "none"; configured: boolean; masked: string | null };
   uploadPost: { configured: boolean; masked: string | null };
+  duoplus: { configured: boolean; masked: string | null };
   topups: TopUp[];
   topupCents: number;
   drive: {
@@ -50,6 +51,7 @@ export default function SettingsPage() {
   const [usage, setUsage] = useState<UsageSummary | null>(null);
   const [keyInput, setKeyInput] = useState("");
   const [upKey, setUpKey] = useState("");
+  const [dpKey, setDpKey] = useState("");
   const [topup, setTopup] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -193,6 +195,40 @@ export default function SettingsPage() {
               className="mt-3 inline-flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300"
             >
               Crea l&apos;account e la API key su upload-post.com <ExternalLink size={10} />
+            </a>
+          </Section>
+
+          {/* DuoPlus (device farm) */}
+          <Section
+            icon={<Smartphone size={15} />}
+            title="DuoPlus · Device farm"
+            desc="Cloud phone per creare, scaldare e gestire gli account a scala via API. La chiave resta solo lato server."
+          >
+            <div className="mb-3 flex items-center gap-2 text-[12px]">
+              {s?.duoplus.configured ? (
+                <>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-600/30 bg-emerald-600/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+                    <Check size={11} /> Collegata
+                  </span>
+                  <span className="font-mono text-zinc-500">{s.duoplus.masked}</span>
+                </>
+              ) : (
+                <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-300">Non collegata</span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <input className={inputCls} type="password" placeholder="DuoPlus API key" value={dpKey} onChange={(e) => setDpKey(e.target.value)} />
+              <button className={whiteBtn} disabled={!dpKey.trim() || busy === "dp"} onClick={() => save({ duoplusKey: dpKey }, "dp").then(() => setDpKey(""))}>
+                {busy === "dp" ? <Loader2 size={13} className="animate-spin" /> : "Salva"}
+              </button>
+              {s?.duoplus.configured && (
+                <button className={ghostBtn} disabled={busy === "dp"} onClick={() => save({ clearDuoplusKey: true }, "dp")}>
+                  Rimuovi
+                </button>
+              )}
+            </div>
+            <a href="/farm" className="mt-3 inline-flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300">
+              Apri la Device farm <ExternalLink size={10} />
             </a>
           </Section>
 

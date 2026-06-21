@@ -9,6 +9,7 @@ export interface CFEnv {
   OPENAI_API_KEY?: string;
   OPENAI_IMAGE_MODEL?: string;
   UPLOAD_POST_API_KEY?: string;
+  DUOPLUS_API_KEY?: string;
   CRON_SECRET?: string;
   APP_USER?: string;
   APP_PASSWORD?: string;
