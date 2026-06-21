@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CalendarClock, Loader2, Phone, Plus, Power, RotateCw, Server, Smartphone, X } from "lucide-react";
+import { ArrowLeft, CalendarClock, CalendarPlus, Check, Loader2, Pause, Phone, Play, Plus, Power, RotateCw, Server, Smartphone, Trash2, X } from "lucide-react";
 
 type Tab = "phones" | "apps" | "proxies" | "warmup" | "numbers";
 
@@ -269,65 +269,255 @@ function CreatePhoneModal({ onClose, onDone }: { onClose: () => void; onDone: ()
   );
 }
 
+interface Template {
+  id: string;
+  name: string;
+  desc?: string;
+  type: 1 | 2;
+}
+interface Plan {
+  id: string;
+  name: string;
+  remark?: string;
+  task_type_name?: string;
+  status: number; // 0 non avviato,1 in esecuzione,2 in pausa,3 finito
+  created_at?: string;
+}
+const PLAN_STATUS: Record<number, { t: string; c: string }> = {
+  0: { t: "non avviato", c: "text-zinc-500" },
+  1: { t: "attivo", c: "text-emerald-400" },
+  2: { t: "in pausa", c: "text-amber-400" },
+  3: { t: "finito", c: "text-zinc-500" },
+};
+
 function WarmupTab() {
-  const [official, setOfficial] = useState<{ id: string; name: string; desc?: string }[] | null>(null);
-  const [custom, setCustom] = useState<{ id: string; name: string; desc?: string }[]>([]);
+  const [templates, setTemplates] = useState<Template[] | null>(null);
+  const [plans, setPlans] = useState<Plan[] | null>(null);
+  const [scheduling, setScheduling] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  useEffect(() => {
-    duo<{ list: { id: string; name: string; desc?: string }[] }>("templates.official", { page: 1, pagesize: 100 })
-      .then((d) => setOfficial(d.list ?? []))
-      .catch((e) => { setErr(String(e)); setOfficial([]); });
-    duo<{ list: { id: string; name: string; desc?: string }[] }>("templates.custom", { page: 1, pagesize: 100 })
-      .then((d) => setCustom(d.list ?? []))
-      .catch(() => {});
+  const loadTemplates = useCallback(async () => {
+    try {
+      const [off, cus] = await Promise.all([
+        duo<{ list: Template[] }>("templates.official", { page: 1, pagesize: 100 }),
+        duo<{ list: Template[] }>("templates.custom", { page: 1, pagesize: 100 }).catch(() => ({ list: [] as Template[] })),
+      ]);
+      setTemplates([
+        ...(off.list ?? []).map((t) => ({ ...t, type: 1 as const })),
+        ...(cus.list ?? []).map((t) => ({ ...t, type: 2 as const })),
+      ]);
+    } catch (e) {
+      setErr(String(e));
+      setTemplates([]);
+    }
   }, []);
+  const loadPlans = useCallback(() => duo<{ list: Plan[] }>("plans.list", { page: 1, pagesize: 100 }).then((d) => setPlans(d.list ?? [])).catch(() => setPlans([])), []);
+  useEffect(() => {
+    loadTemplates();
+    loadPlans();
+  }, [loadTemplates, loadPlans]);
+
+  const planAction = async (action: string, id: string, params: Record<string, unknown>) => {
+    setBusy(`${action}-${id}`);
+    try {
+      await duo(action, params);
+      loadPlans();
+    } finally {
+      setBusy(null);
+    }
+  };
 
   return (
     <div className={WRAP}>
-      <SectionHead title="Warmup & automazioni (RPA)" desc="Template DuoPlus da pianificare sui telefoni. I template custom si creano nella console DuoPlus, poi li programmi da qui." />
+      <SectionHead
+        title="Warmup & automazioni (RPA)"
+        desc="Pianifica un template di account-warming sui telefoni, ricorrente, per simulare attività umana graduale."
+        action={
+          <button onClick={() => setScheduling(true)} className={whiteBtn}>
+            <CalendarPlus size={14} /> Programma warmup
+          </button>
+        }
+      />
       {err && <div className="mb-3 rounded-lg border border-red-900/50 bg-red-950/30 p-2.5 text-[11.5px] text-red-300">{err}</div>}
 
-      <div className="rounded-xl border border-[#26262b] bg-[#19191c] p-4 text-[12px] leading-relaxed text-zinc-400">
-        <div className="mb-1 font-semibold text-zinc-200">Come funziona il warmup</div>
-        Un task = un <span className="text-zinc-300">template</span> applicato a N telefoni con orari. Pianifica un template
-        di &quot;account warming&quot; come <span className="text-zinc-300">Loop Task</span> (ricorrente) per simulare attività umana
-        graduale. La pubblicazione vera passa comunque dall&apos;API ufficiale (Upload-Post).
+      <div className="mb-5 rounded-xl border border-[#26262b] bg-[#19191c] p-4 text-[12px] leading-relaxed text-zinc-400">
+        <div className="mb-1 font-semibold text-zinc-200">Come funziona</div>
+        Un piano = un <span className="text-zinc-300">template</span> applicato a N telefoni con una cadenza ricorrente. I
+        template custom si creano nella console DuoPlus; quelli ufficiali sono già pronti. La pubblicazione vera passa
+        dall&apos;API ufficiale (Upload-Post). <span className="text-amber-400/90">Nota: il flusso è da rifinire al primo test su un device reale.</span>
       </div>
 
-      <div className="mt-5">
-        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Template ufficiali</div>
-        {!official ? (
+      {/* piani attivi */}
+      <div className="mb-6">
+        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Piani programmati</div>
+        {!plans ? (
           <Loader2 size={16} className="animate-spin text-zinc-600" />
-        ) : official.length === 0 ? (
-          <div className="text-[12px] text-zinc-600">Nessun template disponibile.</div>
+        ) : plans.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-[#2a2a30] p-6 text-center text-[12px] text-zinc-600">Nessun piano. Premi &quot;Programma warmup&quot;.</div>
         ) : (
           <div className="grid gap-2 md:grid-cols-2">
-            {official.map((t) => (
-              <div key={t.id} className="rounded-xl border border-[#26262b] bg-[#19191c] p-3">
-                <div className="text-[12.5px] font-medium text-zinc-100">{t.name}</div>
-                {t.desc && <div className="mt-0.5 text-[11px] text-zinc-500 line-clamp-2">{t.desc}</div>}
-                <div className="mt-1 font-mono text-[9px] text-zinc-600">{t.id}</div>
-              </div>
-            ))}
+            {plans.map((p) => {
+              const st = PLAN_STATUS[p.status] ?? { t: String(p.status), c: "text-zinc-500" };
+              return (
+                <div key={p.id} className="flex items-center gap-2 rounded-xl border border-[#26262b] bg-[#19191c] p-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[12.5px] font-medium text-zinc-100">{p.name}</div>
+                    <div className={`text-[11px] ${st.c}`}>{st.t}{p.task_type_name ? ` · ${p.task_type_name}` : ""}</div>
+                  </div>
+                  {p.status === 1 ? (
+                    <button onClick={() => planAction("plans.setStatus", p.id, { id: p.id, status: 0 })} disabled={!!busy} className={btn} title="Pausa">
+                      {busy === `plans.setStatus-${p.id}` ? <Loader2 size={12} className="animate-spin" /> : <Pause size={12} />}
+                    </button>
+                  ) : (
+                    <button onClick={() => planAction("plans.setStatus", p.id, { id: p.id, status: 1 })} disabled={!!busy} className={btn} title="Avvia">
+                      {busy === `plans.setStatus-${p.id}` ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
+                    </button>
+                  )}
+                  <button onClick={() => planAction("plans.delete", p.id, { id: p.id })} disabled={!!busy} className="grid h-9 w-9 place-items-center rounded-lg text-zinc-500 hover:bg-[#222227] hover:text-red-400">
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
 
-      {custom.length > 0 && (
-        <div className="mt-5">
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">I tuoi template</div>
-          <div className="grid gap-2 md:grid-cols-2">
-            {custom.map((t) => (
-              <div key={t.id} className="rounded-xl border border-[#26262b] bg-[#19191c] p-3">
-                <div className="text-[12.5px] font-medium text-zinc-100">{t.name}</div>
-                <div className="mt-1 font-mono text-[9px] text-zinc-600">{t.id}</div>
+      {/* template disponibili */}
+      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Template disponibili</div>
+      {!templates ? (
+        <Loader2 size={16} className="animate-spin text-zinc-600" />
+      ) : templates.length === 0 ? (
+        <div className="text-[12px] text-zinc-600">Nessun template disponibile.</div>
+      ) : (
+        <div className="grid gap-2 md:grid-cols-2">
+          {templates.map((t) => (
+            <div key={`${t.type}-${t.id}`} className="rounded-xl border border-[#26262b] bg-[#19191c] p-3">
+              <div className="flex items-center gap-2">
+                <span className="rounded bg-[#2e2e34] px-1.5 py-0.5 text-[9px] font-bold text-zinc-400">{t.type === 1 ? "UFFICIALE" : "TUO"}</span>
+                <span className="text-[12.5px] font-medium text-zinc-100">{t.name}</span>
               </div>
-            ))}
-          </div>
+              {t.desc && <div className="mt-1 text-[11px] text-zinc-500 line-clamp-2">{t.desc}</div>}
+            </div>
+          ))}
         </div>
       )}
+
+      {scheduling && <ScheduleWarmupModal templates={templates ?? []} onClose={() => setScheduling(false)} onDone={() => { setScheduling(false); loadPlans(); }} />}
     </div>
+  );
+}
+
+function ScheduleWarmupModal({ templates, onClose, onDone }: { templates: Template[]; onClose: () => void; onDone: () => void }) {
+  const [phones, setPhones] = useState<Phone[] | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [templateKey, setTemplateKey] = useState("");
+  const [name, setName] = useState("Warmup");
+  const [cadence, setCadence] = useState<"daily" | "interval">("daily");
+  const [time, setTime] = useState("10:00");
+  const [gapMin, setGapMin] = useState(180);
+  const [days, setDays] = useState(30);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    duo<{ list: Phone[] }>("phones.list", { page: 1, pagesize: 100 }).then((d) => setPhones(d.list ?? [])).catch(() => setPhones([]));
+  }, []);
+
+  const toggle = (id: string) => setPicked((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  const fmt = (d: Date) => {
+    const p = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:00`;
+  };
+
+  const schedule = async () => {
+    const t = templates.find((x) => `${x.type}-${x.id}` === templateKey);
+    if (!t) { setErr("Scegli un template"); return; }
+    if (!picked.size) { setErr("Scegli almeno un telefono"); return; }
+    setBusy(true);
+    setErr(null);
+    try {
+      const start = new Date();
+      const end = new Date(Date.now() + days * 86400000);
+      const images = [...picked].map((image_id) => ({
+        image_id,
+        start_at: fmt(start),
+        end_at: fmt(end),
+        mode: 2,
+        ...(cadence === "interval"
+          ? { execute_type: "1", gap_time: gapMin }
+          : { execute_type: "2", execute_time: time }),
+      }));
+      await duo("plans.add", { template_id: t.id, template_type: t.type, name, images });
+      onDone();
+    } catch (e) {
+      setErr(String(e));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title="Programma warmup" onClose={onClose}>
+      <div className="space-y-3">
+        <Field label="Template">
+          <select className={inputCls} value={templateKey} onChange={(e) => setTemplateKey(e.target.value)}>
+            <option value="">— scegli —</option>
+            {templates.map((t) => (
+              <option key={`${t.type}-${t.id}`} value={`${t.type}-${t.id}`}>{t.type === 1 ? "[Ufficiale] " : "[Tuo] "}{t.name}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Nome piano">
+          <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} />
+        </Field>
+        <div>
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-zinc-500">Telefoni</div>
+          {!phones ? (
+            <div className="text-[11px] text-zinc-600">Carico…</div>
+          ) : phones.length === 0 ? (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-[11px] text-amber-200">Nessun telefono. Crea prima un cloud phone nella tab Telefoni.</div>
+          ) : (
+            <div className="max-h-36 space-y-1 overflow-y-auto">
+              {phones.map((p) => {
+                const on = picked.has(p.id);
+                return (
+                  <button key={p.id} onClick={() => toggle(p.id)} className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-[12px] transition ${on ? "border-zinc-400 bg-[#222227]" : "border-[#2a2a30] bg-[#1d1d21] hover:border-[#3c3c44]"}`}>
+                    <span className={`grid h-4 w-4 place-items-center rounded-full border ${on ? "border-white bg-white text-black" : "border-[#3c3c44]"}`}>{on && <Check size={10} />}</span>
+                    {p.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Cadenza">
+            <select className={inputCls} value={cadence} onChange={(e) => setCadence(e.target.value as "daily" | "interval")}>
+              <option value="daily">Ogni giorno</option>
+              <option value="interval">A intervalli</option>
+            </select>
+          </Field>
+          {cadence === "daily" ? (
+            <Field label="Orario">
+              <input type="time" className={inputCls + " [color-scheme:dark]"} value={time} onChange={(e) => setTime(e.target.value)} />
+            </Field>
+          ) : (
+            <Field label="Ogni (min)">
+              <input type="number" min={30} className={inputCls} value={gapMin} onChange={(e) => setGapMin(Number(e.target.value) || 180)} />
+            </Field>
+          )}
+        </div>
+        <Field label="Durata piano (giorni)">
+          <input type="number" min={1} className={inputCls} value={days} onChange={(e) => setDays(Number(e.target.value) || 30)} />
+        </Field>
+        {err && <div className="rounded-lg border border-red-900/50 bg-red-950/30 p-2.5 text-[11px] text-red-300">{err}</div>}
+        <button onClick={schedule} disabled={busy} className={whiteBtn + " w-full justify-center"}>
+          {busy ? <Loader2 size={13} className="animate-spin" /> : <CalendarPlus size={13} />} Programma
+        </button>
+      </div>
+    </Modal>
   );
 }
 
